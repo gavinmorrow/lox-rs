@@ -69,7 +69,7 @@ mod scanner {
                             }
                             chars.push(char);
                         } else {
-                            break 'string Error(ParseError::UnterminatedStringLiteral);
+                            break 'string Error(ScanError::UnterminatedStringLiteral);
                         }
                     }
                     String(std::string::String::from_iter(chars))
@@ -123,7 +123,7 @@ mod scanner {
                         ident => Identifier(ident.to_string()),
                     }
                 }
-                char => Error(ParseError::UnexpectedChar(char)),
+                char => Error(ScanError::UnexpectedChar(char)),
             };
 
             let token = Token { data, pos };
@@ -188,11 +188,11 @@ mod scanner {
         Var,
         While,
 
-        Error(ParseError),
+        Error(ScanError),
     }
 
     #[derive(Copy, Clone, Debug)]
-    pub enum ParseError {
+    pub enum ScanError {
         UnexpectedChar(char),
         UnterminatedStringLiteral,
     }
