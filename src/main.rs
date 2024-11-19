@@ -206,41 +206,107 @@ mod parser {
     }
 
     pub enum Expr {
-        Binary {
-            left: Box<Expr>,
-            operator: BinaryOperator,
-            right: Box<Expr>,
-        },
-        Grouping(Box<Expr>),
-        Literal(Literal),
-        Unary {
-            operator: UnaryOperator,
-            right: Box<Expr>,
+        Equality {
+            lhs: Comparison,
+            rhs: Option<(EqualityOperator, Comparison)>,
         },
     }
 
-    pub enum BinaryOperator {
-        Add,
-        Subtract,
-        Multiply,
-        Divide,
-
-        Less,
-        LessOrEqual,
-        Greater,
-        GreaterOrEqual,
-
-        And,
-        Or,
+    pub enum EqualityOperator {
         Equal,
         NotEqual,
     }
-    pub enum Literal {
-        String(String),
-        Number(f64),
+
+    pub struct Comparison {
+        lhs: Term,
+        rhs: Option<(ComparisonOperator, Term)>,
     }
+
+    pub enum ComparisonOperator {
+        Greater,
+        GreaterEqual,
+        Less,
+        LessEqual,
+    }
+
+    pub struct Term {
+        lhs: Factor,
+        rhs: Option<(TermOperator, Factor)>,
+    }
+
+    pub enum TermOperator {
+        Subtract,
+        Add,
+    }
+
+    pub struct Factor {
+        lhs: Unary,
+        rhs: Option<(FactorOperator, Unary)>,
+    }
+
+    pub enum FactorOperator {
+        Divide,
+        Multiply,
+    }
+
+    pub enum Unary {
+        Unary {
+            operator: UnaryOperator,
+            unary: Box<Unary>,
+        },
+        Primary(Primary),
+    }
+
     pub enum UnaryOperator {
-        Negate,
         Not,
+        Negate,
     }
+
+    pub enum Primary {
+        Number(f64),
+        String(String),
+        True,
+        False,
+        Nil,
+        Grouping(Box<Expr>),
+    }
+
+    // pub enum Expr {
+    //     Binary {
+    //         left: Box<Expr>,
+    //         operator: BinaryOperator,
+    //         right: Box<Expr>,
+    //     },
+    //     Grouping(Box<Expr>),
+    //     Literal(Literal),
+    //     Unary {
+    //         operator: UnaryOperator,
+    //         right: Box<Expr>,
+    //     },
+    // }
+
+    // pub enum BinaryOperator {
+    //     Add,
+    //     Subtract,
+    //     Multiply,
+    //     Divide,
+
+    //     Less,
+    //     LessOrEqual,
+    //     Greater,
+    //     GreaterOrEqual,
+
+    //     And,
+    //     Or,
+    //     Equal,
+    //     NotEqual,
+    // }
+    // pub enum Literal {
+    //     String(String),
+    //     Number(f64),
+    // }
+    // pub enum UnaryOperator {
+    //     Negate,
+    //     Not,
+    // }
 }
