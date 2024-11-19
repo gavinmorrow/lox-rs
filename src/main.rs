@@ -238,7 +238,10 @@ mod parser {
             operator: impl Fn(&TokenType) -> Option<Operator>,
         ) -> Result<Binary<Operand, Operator>, ParseError> {
             let lhs = operand(self)?;
-            let rhs = self
+            let mut expr = Binary { lhs, rhs: vec![] };
+
+            // Allow for parsing a sequence (eg 1 + 2 + 3)
+            while let Some(rhs) = self
                 .tokens
                 .peek()
                 // add operator
@@ -250,9 +253,12 @@ mod parser {
                 })
                 // add rhs operand
                 .map(|op| operand(self).map(|operand| (op, operand)))
-                .transpose()?;
+                .transpose()?
+            {
+                expr.rhs.push(rhs);
+            }
 
-            Ok(Binary { lhs, rhs })
+            Ok(expr)
         }
 
         fn expression(&mut self) -> Result<Expr, ParseError> {
@@ -379,7 +385,7 @@ mod ast {
     #[derive(Debug)]
     pub struct Binary<Operand, Operator> {
         pub lhs: Operand,
-        pub rhs: Option<(Operator, Operand)>,
+        pub rhs: Vec<(Operator, Operand)>,
     }
 
     #[derive(Debug)]
