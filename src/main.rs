@@ -248,16 +248,11 @@ mod parser {
         }
 
         fn equality(&mut self) -> Binary<Comparison, EqualityOperator> {
-            self.binary(
-                |parser| {
-                    todo!();
-                },
-                |token| match token {
-                    TokenType::BangEqual => Some(EqualityOperator::NotEqual),
-                    TokenType::EqualEqual => Some(EqualityOperator::Equal),
-                    _ => None,
-                },
-            )
+            self.binary(Self::comparison, |token| match token {
+                TokenType::BangEqual => Some(EqualityOperator::NotEqual),
+                TokenType::EqualEqual => Some(EqualityOperator::Equal),
+                _ => None,
+            })
         }
 
         fn comparison(&mut self) -> Comparison {
