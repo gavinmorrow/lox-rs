@@ -317,7 +317,7 @@ mod parser {
 
         fn primary(&mut self) -> Result<Primary, ParseError> {
             let Some(next_token) = self.tokens.next() else {
-                todo!()
+                return Err(ParseError::ExpectedToken);
             };
 
             use Primary::{False, Nil, Number, String, True};
@@ -349,6 +349,7 @@ mod parser {
 
     #[derive(Debug)]
     enum ParseError {
+        ExpectedToken,
         ExpectedPrimary { actual: Token },
         ExpectedRightParen,
     }
