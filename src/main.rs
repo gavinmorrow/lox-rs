@@ -205,7 +205,10 @@ mod parser {
     use std::iter::Peekable;
 
     use crate::{
-        ast::{Binary, Comparison, EqualityOperator, Expr, Factor, Term, Unary},
+        ast::{
+            Binary, Comparison, ComparisonOperator, EqualityOperator, Expr, Factor, FactorOperator,
+            Term, TermOperator, Unary,
+        },
         scanner::{Token, TokenType},
     };
 
@@ -256,15 +259,29 @@ mod parser {
         }
 
         fn comparison(&mut self) -> Comparison {
-            self.binary(Self::term, |token| todo!())
+            self.binary(Self::term, |token| match token {
+                TokenType::Greater => Some(ComparisonOperator::Greater),
+                TokenType::GreaterEqual => Some(ComparisonOperator::GreaterEqual),
+                TokenType::Less => Some(ComparisonOperator::Less),
+                TokenType::LessEqual => Some(ComparisonOperator::LessEqual),
+                _ => None,
+            })
         }
 
         fn term(&mut self) -> Term {
-            self.binary(Self::factor, |token| todo!())
+            self.binary(Self::factor, |token| match token {
+                TokenType::Minus => Some(TermOperator::Subtract),
+                TokenType::Plus => Some(TermOperator::Add),
+                _ => None,
+            })
         }
 
         fn factor(&mut self) -> Factor {
-            self.binary(Self::unary, |token| todo!())
+            self.binary(Self::unary, |token| match token {
+                TokenType::Slash => Some(FactorOperator::Divide),
+                TokenType::Star => Some(FactorOperator::Multiply),
+                _ => None,
+            })
         }
 
         fn unary(&mut self) -> Unary {
