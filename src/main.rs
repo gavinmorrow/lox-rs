@@ -1,16 +1,22 @@
-use std::{env, fs};
+use std::{env, fs, io};
 
 fn main() {
     let mut args = env::args();
 
-    let Some(path) = args.nth(1) else {
-        eprintln!("Usage: lox-rs [script]");
-        return;
-    };
-
-    match fs::read_to_string(path) {
-        Ok(source) => run(source),
-        Err(err) => eprintln!("Error reading file: {err}"),
+    match args.nth(1) {
+        Some(path) => match fs::read_to_string(path) {
+            Ok(source) => run(source),
+            Err(err) => panic!("Error reading file: {err}"),
+        },
+        None => {
+            // run repl
+            eprint!("> ");
+            while let Some(Ok(line)) = io::stdin().lines().next() {
+                run(line);
+                eprint!("\n> ");
+            }
+            eprintln!("Goodbye! o/");
+        }
     }
 }
 
