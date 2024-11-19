@@ -223,6 +223,17 @@ mod parser {
             self.expression()
         }
 
+        fn binary<Operand, Operator>(
+            &mut self,
+            mut operand: impl FnMut(&mut Self) -> Operand,
+            mut operator: impl FnMut(&mut Self) -> Option<Operator>,
+        ) -> Binary<Operand, Operator> {
+            let lhs = operand(self);
+            let rhs = operator(self).map(|op| (op, operand(self)));
+
+            Binary { lhs, rhs }
+        }
+
         fn expression(&mut self) -> Expr {
             Expr::Equality(self.equality())
         }
@@ -246,17 +257,6 @@ mod parser {
                     })
                 },
             )
-        }
-
-        fn binary<Operand, Operator>(
-            &mut self,
-            mut operand: impl FnMut(&mut Self) -> Operand,
-            mut operator: impl FnMut(&mut Self) -> Option<Operator>,
-        ) -> Binary<Operand, Operator> {
-            let lhs = operand(self);
-            let rhs = operator(self).map(|op| (op, operand(self)));
-
-            Binary { lhs, rhs }
         }
     }
 }
