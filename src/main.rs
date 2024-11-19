@@ -207,7 +207,7 @@ mod parser {
     use crate::{
         ast::{
             Binary, Comparison, ComparisonOperator, EqualityOperator, Expr, Factor, FactorOperator,
-            Term, TermOperator, Unary,
+            Primary, Term, TermOperator, Unary, UnaryOperator,
         },
         scanner::{Token, TokenType},
     };
@@ -285,7 +285,51 @@ mod parser {
         }
 
         fn unary(&mut self) -> Unary {
-            todo!()
+            let operator = self
+                .tokens
+                .peek()
+                .and_then(|token| match &token.data {
+                    TokenType::Bang => Some(UnaryOperator::Not),
+                    TokenType::Minus => Some(UnaryOperator::Negate),
+                    _ => None,
+                })
+                .map(|op| {
+                    self.tokens.next();
+                    op
+                });
+
+            if let Some(operator) = operator {
+                let unary = Box::new(self.unary());
+                Unary::Unary { operator, unary }
+            } else {
+                Unary::Primary(self.primary())
+            }
+        }
+
+        fn primary(&mut self) -> Primary {
+            let Some(next_token) = self.tokens.next() else {
+                todo!()
+            };
+
+            use Primary::{False, Nil, Number, String, True};
+            match &next_token.data {
+                TokenType::False => False,
+                TokenType::True => True,
+                TokenType::Nil => Nil,
+
+                TokenType::Number(n) => Number(*n),
+                TokenType::String(s) => String(s.clone()),
+
+                TokenType::LeftParen => {
+                    let expr = self.expression();
+                    let Some(TokenType::RightParen) = self.tokens.peek().map(|t| &t.data) else {
+                        panic!("Expected right paren");
+                    };
+                    Primary::Grouping(Box::new(expr))
+                }
+
+                _ => panic!("Expected primary."),
+            }
         }
     }
 }
