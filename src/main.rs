@@ -340,14 +340,14 @@ mod parser {
                     } else {
                         Err(ParseError::new(
                             ParseErrorType::ExpectedRightParen,
-                            self.tokens.peek().map(|t| t.clone()),
+                            self.tokens.peek(),
                         ))
                     }
                 }
 
                 _ => Err(ParseError::new(
                     ParseErrorType::ExpectedPrimary,
-                    Some(next_token),
+                    Some(&next_token),
                 )),
             }
         }
@@ -359,7 +359,10 @@ mod parser {
         location: Option<Token>,
     }
     impl ParseError {
-        pub fn new(error: ParseErrorType, location: Option<Token>) -> Self {
+        // Take `&Token` rather than just `Token` so that it's easier to use
+        // `self.tokens.peek()` w/ it.
+        pub fn new(error: ParseErrorType, location: Option<&Token>) -> Self {
+            let location = location.map(|t| t.clone());
             ParseError { error, location }
         }
     }
