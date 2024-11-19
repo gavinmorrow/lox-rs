@@ -16,7 +16,10 @@ fn main() {
 
 fn run(source: String) {
     let tokens = scanner::scan(source);
-    dbg!(tokens);
+    dbg!(&tokens);
+
+    let ast = parser::Parser::new(tokens).parse();
+    dbg!(&ast);
 }
 
 mod scanner {
@@ -213,8 +216,8 @@ mod parser {
             Parser { tokens }
         }
 
-        pub fn parse(&mut self) -> ast::Expr {
-            todo!()
+        pub fn parse(&mut self) -> Expr {
+            self.expression()
         }
 
         fn expression(&mut self) -> Expr {
@@ -233,20 +236,24 @@ mod parser {
 }
 
 mod ast {
+    #[derive(Debug)]
     pub struct Binary<Operand, Operator> {
         pub lhs: Operand,
         pub rhs: Option<(Operator, Operand)>,
     }
 
+    #[derive(Debug)]
     pub enum Expr {
         Equality(Binary<Comparison, EqualityOperator>),
     }
+    #[derive(Debug)]
     pub enum EqualityOperator {
         Equal,
         NotEqual,
     }
 
     pub type Comparison = Binary<Term, ComparisonOperator>;
+    #[derive(Debug)]
     pub enum ComparisonOperator {
         Greater,
         GreaterEqual,
@@ -255,17 +262,20 @@ mod ast {
     }
 
     pub type Term = Binary<Factor, TermOperator>;
+    #[derive(Debug)]
     pub enum TermOperator {
         Subtract,
         Add,
     }
 
     pub type Factor = Binary<Unary, FactorOperator>;
+    #[derive(Debug)]
     pub enum FactorOperator {
         Divide,
         Multiply,
     }
 
+    #[derive(Debug)]
     pub enum Unary {
         Unary {
             operator: UnaryOperator,
@@ -273,11 +283,13 @@ mod ast {
         },
         Primary(Primary),
     }
+    #[derive(Debug)]
     pub enum UnaryOperator {
         Not,
         Negate,
     }
 
+    #[derive(Debug)]
     pub enum Primary {
         Number(f64),
         String(String),
