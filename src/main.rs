@@ -199,10 +199,36 @@ mod scanner {
 }
 
 mod parser {
-    use crate::{ast, scanner::Token};
+    use crate::{
+        ast::{self, Binary, Comparison, EqualityOperator, Expr},
+        scanner::Token,
+    };
 
-    pub fn parse(tokens: Vec<Token>) -> ast::Expr {
-        todo!()
+    pub struct Parser<T> {
+        tokens: T,
+    }
+
+    impl<T: IntoIterator<Item = Token>> Parser<T> {
+        pub fn new(tokens: T) -> Self {
+            Parser { tokens }
+        }
+
+        pub fn parse(&mut self) -> ast::Expr {
+            todo!()
+        }
+
+        fn expression(&mut self) -> Expr {
+            Expr::Equality(self.equality())
+        }
+
+        fn equality(&mut self) -> Binary<Comparison, EqualityOperator> {
+            let lhs = self.comparison();
+            Binary { lhs, rhs: None }
+        }
+
+        fn comparison(&mut self) -> Comparison {
+            todo!()
+        }
     }
 }
 
@@ -213,7 +239,7 @@ mod ast {
     }
 
     pub enum Expr {
-        Equality(Binary<EqualityOperator, Comparison>),
+        Equality(Binary<Comparison, EqualityOperator>),
     }
     pub enum EqualityOperator {
         Equal,
