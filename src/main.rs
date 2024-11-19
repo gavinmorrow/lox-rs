@@ -206,7 +206,7 @@ mod parser {
 
     use crate::{
         ast::{self, Binary, Comparison, EqualityOperator, Expr},
-        scanner::Token,
+        scanner::{Token, TokenType},
     };
 
     pub struct Parser<T> {
@@ -233,7 +233,17 @@ mod parser {
                     todo!();
                 },
                 |parser| {
-                    todo!();
+                    use TokenType::{BangEqual, EqualEqual};
+                    let operator = parser.tokens.peek()?;
+                    match operator.data {
+                        BangEqual => Some(EqualityOperator::NotEqual),
+                        EqualEqual => Some(EqualityOperator::Equal),
+                        _ => None,
+                    }
+                    .map(|op| {
+                        parser.tokens.next().unwrap();
+                        op
+                    })
                 },
             )
         }
