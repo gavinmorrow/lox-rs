@@ -139,12 +139,12 @@ mod scanner {
 
     #[derive(Clone, Debug)]
     pub struct Token {
-        data: TokenType,
-        pos: usize,
+        pub data: TokenType,
+        pub pos: usize,
     }
 
     #[derive(Clone, Debug)]
-    enum TokenType {
+    pub enum TokenType {
         // Single-character tokens.
         LeftParen,
         RightParen,
