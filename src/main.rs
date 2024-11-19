@@ -18,7 +18,7 @@ fn run(source: String) {
     let tokens = scanner::scan(source);
     dbg!(&tokens);
 
-    let ast = parser::Parser::new(tokens.into_iter()).parse();
+    let ast = parser::Parser::new(tokens).parse();
     dbg!(&ast);
 }
 
@@ -212,7 +212,8 @@ mod parser {
     }
 
     impl<T: Iterator<Item = Token>> Parser<T> {
-        pub fn new(tokens: T) -> Self {
+        pub fn new<I: IntoIterator<IntoIter = T>>(tokens: I) -> Self {
+            let tokens = tokens.into_iter();
             Parser { tokens }
         }
 
