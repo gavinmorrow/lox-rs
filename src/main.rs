@@ -18,7 +18,7 @@ fn run(source: String) {
     let tokens = scanner::scan(source);
     dbg!(&tokens);
 
-    let ast = parser::Parser::new(tokens).parse();
+    let ast = parser::Parser::new(tokens.into_iter()).parse();
     dbg!(&ast);
 }
 
@@ -211,7 +211,7 @@ mod parser {
         tokens: T,
     }
 
-    impl<T: IntoIterator<Item = Token>> Parser<T> {
+    impl<T: Iterator<Item = Token>> Parser<T> {
         pub fn new(tokens: T) -> Self {
             Parser { tokens }
         }
@@ -225,12 +225,25 @@ mod parser {
         }
 
         fn equality(&mut self) -> Binary<Comparison, EqualityOperator> {
-            let lhs = self.comparison();
-            Binary { lhs, rhs: None }
+            self.binary(
+                |parser| {
+                    todo!();
+                },
+                |parser| {
+                    todo!();
+                },
+            )
         }
 
-        fn comparison(&mut self) -> Comparison {
-            todo!()
+        fn binary<Operand, Operator>(
+            &mut self,
+            mut operand: impl FnMut(&mut Self) -> Operand,
+            mut operator: impl FnMut(&mut Self) -> Option<Operator>,
+        ) -> Binary<Operand, Operator> {
+            let lhs = operand(self);
+            let rhs = operator(self).map(|op| (op, operand(self)));
+
+            Binary { lhs, rhs }
         }
     }
 }
