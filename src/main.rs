@@ -197,3 +197,5 @@ mod scanner {
         UnterminatedStringLiteral,
     }
 }
+
+mod parser {}
