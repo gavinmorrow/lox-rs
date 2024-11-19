@@ -228,8 +228,8 @@ mod parser {
             Parser { tokens }
         }
 
-        pub fn parse(&mut self) -> Expr {
-            self.expression().unwrap()
+        pub fn parse(&mut self) -> Result<Expr, ParseError> {
+            self.expression()
         }
 
         fn binary<Operand, Operator>(
@@ -348,7 +348,7 @@ mod parser {
     }
 
     #[derive(Debug)]
-    enum ParseError {
+    pub enum ParseError {
         ExpectedToken,
         ExpectedPrimary { actual: Token },
         ExpectedRightParen,
