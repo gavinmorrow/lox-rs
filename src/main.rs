@@ -185,8 +185,6 @@ enum TokenType {
     Var,
     While,
 
-    Eof,
-
     Error(ParseError),
 }
 
