@@ -202,6 +202,8 @@ mod scanner {
 }
 
 mod parser {
+    use std::iter::Peekable;
+
     use crate::{
         ast::{self, Binary, Comparison, EqualityOperator, Expr},
         scanner::Token,
@@ -211,9 +213,9 @@ mod parser {
         tokens: T,
     }
 
-    impl<T: Iterator<Item = Token>> Parser<T> {
+    impl<T: Iterator<Item = Token>> Parser<Peekable<T>> {
         pub fn new<I: IntoIterator<IntoIter = T>>(tokens: I) -> Self {
-            let tokens = tokens.into_iter();
+            let tokens = tokens.into_iter().peekable();
             Parser { tokens }
         }
 
