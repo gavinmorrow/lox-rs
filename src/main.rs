@@ -205,23 +205,20 @@ mod parser {
         todo!()
     }
 
-    pub enum Expr {
-        Equality {
-            lhs: Comparison,
-            rhs: Option<(EqualityOperator, Comparison)>,
-        },
+    pub struct Binary<Operand, Operator> {
+        lhs: Operand,
+        rhs: Option<(Operator, Operand)>,
     }
 
+    pub enum Expr {
+        Equality(Binary<EqualityOperator, Comparison>),
+    }
     pub enum EqualityOperator {
         Equal,
         NotEqual,
     }
 
-    pub struct Comparison {
-        lhs: Term,
-        rhs: Option<(ComparisonOperator, Term)>,
-    }
-
+    pub type Comparison = Binary<Term, ComparisonOperator>;
     pub enum ComparisonOperator {
         Greater,
         GreaterEqual,
@@ -229,21 +226,13 @@ mod parser {
         LessEqual,
     }
 
-    pub struct Term {
-        lhs: Factor,
-        rhs: Option<(TermOperator, Factor)>,
-    }
-
+    pub type Term = Binary<Factor, TermOperator>;
     pub enum TermOperator {
         Subtract,
         Add,
     }
 
-    pub struct Factor {
-        lhs: Unary,
-        rhs: Option<(FactorOperator, Unary)>,
-    }
-
+    pub type Factor = Binary<Unary, FactorOperator>;
     pub enum FactorOperator {
         Divide,
         Multiply,
@@ -256,7 +245,6 @@ mod parser {
         },
         Primary(Primary),
     }
-
     pub enum UnaryOperator {
         Not,
         Negate,
