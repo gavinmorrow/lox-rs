@@ -199,15 +199,17 @@ mod scanner {
 }
 
 mod parser {
-    use crate::scanner::Token;
+    use crate::{ast, scanner::Token};
 
-    pub fn parse(tokens: Vec<Token>) -> Expr {
+    pub fn parse(tokens: Vec<Token>) -> ast::Expr {
         todo!()
     }
+}
 
+mod ast {
     pub struct Binary<Operand, Operator> {
-        lhs: Operand,
-        rhs: Option<(Operator, Operand)>,
+        pub lhs: Operand,
+        pub rhs: Option<(Operator, Operand)>,
     }
 
     pub enum Expr {
