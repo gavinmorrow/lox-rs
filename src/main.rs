@@ -328,7 +328,7 @@ mod parser {
                     Primary::Grouping(Box::new(expr))
                 }
 
-                _ => panic!("Expected primary."),
+                token => panic!("Expected primary, got {token:#?}"),
             }
         }
     }
