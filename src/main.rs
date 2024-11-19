@@ -212,8 +212,8 @@ mod parser {
 
     use crate::{
         ast::{
-            Binary, Comparison, ComparisonOperator, EqualityOperator, Expr, Factor, FactorOperator,
-            Primary, Term, TermOperator, Unary, UnaryOperator,
+            Binary, Comparison, ComparisonOperator, Equality, EqualityOperator, Expr, Factor,
+            FactorOperator, Primary, Term, TermOperator, Unary, UnaryOperator,
         },
         scanner::{Token, TokenType},
     };
@@ -256,7 +256,7 @@ mod parser {
             Expr::Equality(self.equality())
         }
 
-        fn equality(&mut self) -> Binary<Comparison, EqualityOperator> {
+        fn equality(&mut self) -> Equality {
             self.binary(Self::comparison, |token| match token {
                 TokenType::BangEqual => Some(EqualityOperator::NotEqual),
                 TokenType::EqualEqual => Some(EqualityOperator::Equal),
@@ -349,8 +349,10 @@ mod ast {
 
     #[derive(Debug)]
     pub enum Expr {
-        Equality(Binary<Comparison, EqualityOperator>),
+        Equality(Equality),
     }
+
+    pub type Equality = Binary<Comparison, EqualityOperator>;
     #[derive(Debug)]
     pub enum EqualityOperator {
         Equal,
