@@ -226,10 +226,19 @@ mod parser {
         fn binary<Operand, Operator>(
             &mut self,
             mut operand: impl FnMut(&mut Self) -> Operand,
-            mut operator: impl FnMut(&mut Self) -> Option<Operator>,
+            operator: impl Fn(&TokenType) -> Option<Operator>,
         ) -> Binary<Operand, Operator> {
             let lhs = operand(self);
-            let rhs = operator(self).map(|op| (op, operand(self)));
+            let rhs = self
+                .tokens
+                .peek()
+                .and_then(|t| operator(&t.data))
+                .map(|op| {
+                    // advance iterator if `operator()` matched
+                    self.tokens.next();
+                    op
+                })
+                .map(|op| (op, operand(self)));
 
             Binary { lhs, rhs }
         }
@@ -243,32 +252,24 @@ mod parser {
                 |parser| {
                     todo!();
                 },
-                |parser| {
-                    use TokenType::{BangEqual, EqualEqual};
-                    let operator = parser.tokens.peek()?;
-                    match operator.data {
-                        BangEqual => Some(EqualityOperator::NotEqual),
-                        EqualEqual => Some(EqualityOperator::Equal),
-                        _ => None,
-                    }
-                    .map(|op| {
-                        parser.tokens.next().unwrap();
-                        op
-                    })
+                |token| match token {
+                    TokenType::BangEqual => Some(EqualityOperator::NotEqual),
+                    TokenType::EqualEqual => Some(EqualityOperator::Equal),
+                    _ => None,
                 },
             )
         }
 
         fn comparison(&mut self) -> Comparison {
-            self.binary(Self::term, |parser| todo!())
+            self.binary(Self::term, |token| todo!())
         }
 
         fn term(&mut self) -> Term {
-            self.binary(Self::factor, |parser| todo!())
+            self.binary(Self::factor, |token| todo!())
         }
 
         fn factor(&mut self) -> Factor {
-            self.binary(Self::unary, |parser| todo!())
+            self.binary(Self::unary, |token| todo!())
         }
 
         fn unary(&mut self) -> Unary {
