@@ -229,34 +229,37 @@ mod parser {
         }
 
         pub fn parse(&mut self) -> Expr {
-            self.expression()
+            self.expression().unwrap()
         }
 
         fn binary<Operand, Operator>(
             &mut self,
-            mut operand: impl FnMut(&mut Self) -> Operand,
+            mut operand: impl FnMut(&mut Self) -> Result<Operand, ParseError>,
             operator: impl Fn(&TokenType) -> Option<Operator>,
-        ) -> Binary<Operand, Operator> {
-            let lhs = operand(self);
+        ) -> Result<Binary<Operand, Operator>, ParseError> {
+            let lhs = operand(self)?;
             let rhs = self
                 .tokens
                 .peek()
+                // add operator
                 .and_then(|t| operator(&t.data))
                 .map(|op| {
                     // advance iterator if `operator()` matched
                     self.tokens.next();
                     op
                 })
-                .map(|op| (op, operand(self)));
+                // add rhs operand
+                .map(|op| operand(self).map(|operand| (op, operand)))
+                .transpose()?;
 
-            Binary { lhs, rhs }
+            Ok(Binary { lhs, rhs })
         }
 
-        fn expression(&mut self) -> Expr {
-            Expr::Equality(self.equality())
+        fn expression(&mut self) -> Result<Expr, ParseError> {
+            Ok(Expr::Equality(self.equality()?))
         }
 
-        fn equality(&mut self) -> Equality {
+        fn equality(&mut self) -> Result<Equality, ParseError> {
             self.binary(Self::comparison, |token| match token {
                 TokenType::BangEqual => Some(EqualityOperator::NotEqual),
                 TokenType::EqualEqual => Some(EqualityOperator::Equal),
@@ -264,7 +267,7 @@ mod parser {
             })
         }
 
-        fn comparison(&mut self) -> Comparison {
+        fn comparison(&mut self) -> Result<Comparison, ParseError> {
             self.binary(Self::term, |token| match token {
                 TokenType::Greater => Some(ComparisonOperator::Greater),
                 TokenType::GreaterEqual => Some(ComparisonOperator::GreaterEqual),
@@ -274,7 +277,7 @@ mod parser {
             })
         }
 
-        fn term(&mut self) -> Term {
+        fn term(&mut self) -> Result<Term, ParseError> {
             self.binary(Self::factor, |token| match token {
                 TokenType::Minus => Some(TermOperator::Subtract),
                 TokenType::Plus => Some(TermOperator::Add),
@@ -282,7 +285,7 @@ mod parser {
             })
         }
 
-        fn factor(&mut self) -> Factor {
+        fn factor(&mut self) -> Result<Factor, ParseError> {
             self.binary(Self::unary, |token| match token {
                 TokenType::Slash => Some(FactorOperator::Divide),
                 TokenType::Star => Some(FactorOperator::Multiply),
@@ -290,7 +293,7 @@ mod parser {
             })
         }
 
-        fn unary(&mut self) -> Unary {
+        fn unary(&mut self) -> Result<Unary, ParseError> {
             let operator = self
                 .tokens
                 .peek()
@@ -305,38 +308,49 @@ mod parser {
                 });
 
             if let Some(operator) = operator {
-                let unary = Box::new(self.unary());
-                Unary::Unary { operator, unary }
+                let unary = Box::new(self.unary()?);
+                Ok(Unary::Unary { operator, unary })
             } else {
-                Unary::Primary(self.primary())
+                Ok(Unary::Primary(self.primary()?))
             }
         }
 
-        fn primary(&mut self) -> Primary {
+        fn primary(&mut self) -> Result<Primary, ParseError> {
             let Some(next_token) = self.tokens.next() else {
                 todo!()
             };
 
             use Primary::{False, Nil, Number, String, True};
             match &next_token.data {
-                TokenType::False => False,
-                TokenType::True => True,
-                TokenType::Nil => Nil,
+                TokenType::False => Ok(False),
+                TokenType::True => Ok(True),
+                TokenType::Nil => Ok(Nil),
 
-                TokenType::Number(n) => Number(*n),
-                TokenType::String(s) => String(s.clone()),
+                TokenType::Number(n) => Ok(Number(*n)),
+                TokenType::String(s) => Ok(String(s.clone())),
 
                 TokenType::LeftParen => {
-                    let expr = self.expression();
-                    let Some(TokenType::RightParen) = self.tokens.peek().map(|t| &t.data) else {
-                        panic!("Expected right paren");
-                    };
-                    Primary::Grouping(Box::new(expr))
+                    let expr = self.expression()?;
+                    if self
+                        .tokens
+                        .next_if(|t| matches!(t.data, TokenType::RightParen))
+                        .is_some()
+                    {
+                        Ok(Primary::Grouping(Box::new(expr)))
+                    } else {
+                        Err(ParseError::ExpectedRightParen)
+                    }
                 }
 
-                token => panic!("Expected primary, got {token:#?}"),
+                _ => Err(ParseError::ExpectedPrimary { actual: next_token }),
             }
         }
+    }
+
+    #[derive(Debug)]
+    enum ParseError {
+        ExpectedPrimary { actual: Token },
+        ExpectedRightParen,
     }
 }
 
