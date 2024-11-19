@@ -317,7 +317,7 @@ mod parser {
 
         fn primary(&mut self) -> Result<Primary, ParseError> {
             let Some(next_token) = self.tokens.next() else {
-                return Err(ParseError::UnexpectedEof);
+                return Err(ParseError::new(ParseErrorType::ExpectedPrimary, None));
             };
 
             use Primary::{False, Nil, Number, String, True};
@@ -338,19 +338,36 @@ mod parser {
                     {
                         Ok(Primary::Grouping(Box::new(expr)))
                     } else {
-                        Err(ParseError::ExpectedRightParen)
+                        Err(ParseError::new(
+                            ParseErrorType::ExpectedRightParen,
+                            self.tokens.peek().map(|t| t.clone()),
+                        ))
                     }
                 }
 
-                _ => Err(ParseError::ExpectedPrimary { actual: next_token }),
+                _ => Err(ParseError::new(
+                    ParseErrorType::ExpectedPrimary,
+                    Some(next_token),
+                )),
             }
         }
     }
 
     #[derive(Debug)]
-    pub enum ParseError {
+    pub struct ParseError {
+        error: ParseErrorType,
+        location: Option<Token>,
+    }
+    impl ParseError {
+        pub fn new(error: ParseErrorType, location: Option<Token>) -> Self {
+            ParseError { error, location }
+        }
+    }
+
+    #[derive(Debug)]
+    pub enum ParseErrorType {
         UnexpectedEof,
-        ExpectedPrimary { actual: Token },
+        ExpectedPrimary,
         ExpectedRightParen,
     }
 }
