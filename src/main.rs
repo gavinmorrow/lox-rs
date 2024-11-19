@@ -258,43 +258,4 @@ mod parser {
         Nil,
         Grouping(Box<Expr>),
     }
-
-    // pub enum Expr {
-    //     Binary {
-    //         left: Box<Expr>,
-    //         operator: BinaryOperator,
-    //         right: Box<Expr>,
-    //     },
-    //     Grouping(Box<Expr>),
-    //     Literal(Literal),
-    //     Unary {
-    //         operator: UnaryOperator,
-    //         right: Box<Expr>,
-    //     },
-    // }
-
-    // pub enum BinaryOperator {
-    //     Add,
-    //     Subtract,
-    //     Multiply,
-    //     Divide,
-
-    //     Less,
-    //     LessOrEqual,
-    //     Greater,
-    //     GreaterOrEqual,
-
-    //     And,
-    //     Or,
-    //     Equal,
-    //     NotEqual,
-    // }
-    // pub enum Literal {
-    //     String(String),
-    //     Number(f64),
-    // }
-    // pub enum UnaryOperator {
-    //     Negate,
-    //     Not,
-    // }
 }
