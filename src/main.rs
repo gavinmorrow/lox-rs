@@ -421,11 +421,11 @@ mod interperter {
     }
 
     trait BinaryOperator {
-        fn resolve(&self, a: Value, b: Value) -> Result<Value, Error>;
+        fn apply(&self, a: Value, b: Value) -> Result<Value, Error>;
     }
 
     impl BinaryOperator for EqualityOperator {
-        fn resolve(&self, a: Value, b: Value) -> Result<Value, Error> {
+        fn apply(&self, a: Value, b: Value) -> Result<Value, Error> {
             match self {
                 EqualityOperator::Equal => Ok(Value::Boolean(a == b)),
                 EqualityOperator::NotEqual => Ok(Value::Boolean(a != b)),
@@ -434,7 +434,7 @@ mod interperter {
     }
 
     impl BinaryOperator for ComparisonOperator {
-        fn resolve(&self, a: Value, b: Value) -> Result<Value, Error> {
+        fn apply(&self, a: Value, b: Value) -> Result<Value, Error> {
             use Value::{Boolean, Number};
             let (Number(a), Number(b)) = (a, b) else {
                 return Err(Error::TypeError);
@@ -449,7 +449,7 @@ mod interperter {
     }
 
     impl BinaryOperator for TermOperator {
-        fn resolve(&self, a: Value, b: Value) -> Result<Value, Error> {
+        fn apply(&self, a: Value, b: Value) -> Result<Value, Error> {
             use Value::Number;
             let (Number(a), Number(b)) = (a, b) else {
                 return Err(Error::TypeError);
@@ -462,7 +462,7 @@ mod interperter {
     }
 
     impl BinaryOperator for FactorOperator {
-        fn resolve(&self, a: Value, b: Value) -> Result<Value, Error> {
+        fn apply(&self, a: Value, b: Value) -> Result<Value, Error> {
             use Value::Number;
             let (Number(a), Number(b)) = (a, b) else {
                 return Err(Error::TypeError);
@@ -486,7 +486,7 @@ mod interperter {
 
             for (op, rhs) in value.rhs {
                 let rhs: Value = rhs.try_into()?;
-                lhs = op.resolve(lhs, rhs)?;
+                lhs = op.apply(lhs, rhs)?;
             }
 
             Ok(lhs)
