@@ -217,7 +217,7 @@ mod parser {
 
     use crate::{
         ast::{
-            Binary, Comparison, ComparisonOperator, Equality, EqualityOperator, Expr, Factor,
+            Ast, Binary, Comparison, ComparisonOperator, Equality, EqualityOperator, Expr, Factor,
             FactorOperator, Primary, Term, TermOperator, Unary, UnaryOperator,
         },
         scanner::{Token, TokenType},
@@ -233,8 +233,8 @@ mod parser {
             Parser { tokens }
         }
 
-        pub fn parse(&mut self) -> Result<Expr, ParseError> {
-            self.expression()
+        pub fn parse(&mut self) -> Result<Ast, ParseError> {
+            todo!();
         }
 
         fn binary<Operand, Operator>(
@@ -388,12 +388,12 @@ mod parser {
 
 mod interperter {
     use crate::ast::{
-        Binary, ComparisonOperator, EqualityOperator, Expr, FactorOperator, Primary, TermOperator,
-        Unary, UnaryOperator,
+        Ast, Binary, ComparisonOperator, EqualityOperator, Expr, FactorOperator, Primary,
+        TermOperator, Unary, UnaryOperator,
     };
 
-    pub fn interpert(ast: Expr) -> Result<Value, Error> {
-        evaluate(ast)
+    pub fn interpert(ast: Ast) -> Result<(), Error> {
+        todo!()
     }
 
     fn evaluate(expr: Expr) -> Result<Value, Error> {
@@ -539,15 +539,22 @@ mod interperter {
 }
 
 mod ast {
+    pub type Ast = Vec<Stmt>;
     #[derive(Debug)]
-    pub struct Binary<Operand, Operator> {
-        pub lhs: Operand,
-        pub rhs: Vec<(Operator, Operand)>,
+    pub enum Stmt {
+        Expression(Expr),
+        Print(Expr),
     }
 
     #[derive(Debug)]
     pub enum Expr {
         Equality(Equality),
+    }
+
+    #[derive(Debug)]
+    pub struct Binary<Operand, Operator> {
+        pub lhs: Operand,
+        pub rhs: Vec<(Operator, Operand)>,
     }
 
     pub type Equality = Binary<Comparison, EqualityOperator>;
