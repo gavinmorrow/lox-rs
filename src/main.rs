@@ -218,7 +218,7 @@ mod parser {
     use crate::{
         ast::{
             Ast, Binary, Comparison, ComparisonOperator, Equality, EqualityOperator, Expr, Factor,
-            FactorOperator, Primary, Term, TermOperator, Unary, UnaryOperator,
+            FactorOperator, Primary, Stmt, Term, TermOperator, Unary, UnaryOperator,
         },
         scanner::{Token, TokenType},
     };
@@ -234,7 +234,17 @@ mod parser {
         }
 
         pub fn parse(&mut self) -> Result<Ast, ParseError> {
-            todo!();
+            let mut statements = vec![];
+
+            while self.tokens.peek().is_some() {
+                statements.push(self.statement())
+            }
+
+            Ok(statements)
+        }
+
+        fn statement(&mut self) -> Stmt {
+            todo!()
         }
 
         fn binary<Operand, Operator>(
