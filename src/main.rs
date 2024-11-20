@@ -26,6 +26,11 @@ fn run(source: String) {
 
     let ast = parser::Parser::new(tokens).parse();
     dbg!(&ast);
+
+    if let Ok(ast) = ast {
+        let res = interperter::interpert(ast);
+        dbg!(res);
+    }
 }
 
 mod scanner {
@@ -387,11 +392,17 @@ mod interperter {
         Unary, UnaryOperator,
     };
 
-    pub fn evaluate(expr: Expr) -> Value {
-        todo!()
+    pub fn interpert(ast: Expr) -> Result<Value, Error> {
+        evaluate(ast)
     }
 
-    #[derive(PartialEq)]
+    fn evaluate(expr: Expr) -> Result<Value, Error> {
+        match expr {
+            Expr::Equality(equality) => equality.try_into(),
+        }
+    }
+
+    #[derive(Debug, PartialEq)]
     pub enum Value {
         Nil,
         Boolean(bool),
@@ -500,25 +511,28 @@ mod interperter {
                         Ok(Value::Number(-n))
                     }
                 },
-                Unary::Primary(primary) => Ok(primary.into()),
+                Unary::Primary(primary) => primary.try_into(),
             }
         }
     }
 
-    impl From<Primary> for Value {
-        fn from(primary: Primary) -> Self {
+    impl TryFrom<Primary> for Value {
+        type Error = Error;
+
+        fn try_from(primary: Primary) -> Result<Self, Error> {
             use Value::{Boolean, Nil, Number, String};
             match primary {
-                Primary::Number(n) => Number(n),
-                Primary::String(s) => String(s),
-                Primary::True => Boolean(true),
-                Primary::False => Boolean(false),
-                Primary::Nil => Nil,
+                Primary::Number(n) => Ok(Number(n)),
+                Primary::String(s) => Ok(String(s)),
+                Primary::True => Ok(Boolean(true)),
+                Primary::False => Ok(Boolean(false)),
+                Primary::Nil => Ok(Nil),
                 Primary::Grouping(expr) => evaluate(*expr),
             }
         }
     }
 
+    #[derive(Debug)]
     pub enum Error {
         TypeError,
     }
