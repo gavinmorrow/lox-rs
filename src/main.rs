@@ -381,6 +381,94 @@ mod parser {
     }
 }
 
+mod interperter {
+    use crate::ast::{Binary, Expr, Primary, Unary, UnaryOperator};
+
+    pub fn evaluate(expr: Expr) -> Value {
+        todo!()
+    }
+
+    pub enum Value {
+        Nil,
+        Boolean(bool),
+        Number(f64),
+        String(String),
+    }
+
+    impl Value {
+        fn is_truthy(&self) -> bool {
+            use Value::{Boolean, Nil};
+            match self {
+                Nil | Boolean(false) => false,
+                _ => true,
+            }
+        }
+    }
+
+    trait BinaryOperator {
+        fn resolve(&self, a: Value, b: Value) -> Result<Value, Error>;
+    }
+
+    impl<Operand: TryInto<Value>, Operator: BinaryOperator> TryFrom<Binary<Operand, Operator>> for Value
+    where
+        Error: From<Operand::Error>,
+    {
+        type Error = Error;
+
+        fn try_from(value: Binary<Operand, Operator>) -> Result<Self, Self::Error> {
+            let mut lhs: Value = value.lhs.try_into()?;
+
+            for (op, rhs) in value.rhs {
+                let rhs: Value = rhs.try_into()?;
+                lhs = op.resolve(lhs, rhs)?;
+            }
+
+            Ok(lhs)
+        }
+    }
+
+    impl TryFrom<Unary> for Value {
+        type Error = Error;
+
+        fn try_from(unary: Unary) -> Result<Self, Self::Error> {
+            match unary {
+                Unary::Unary { operator, unary } => match operator {
+                    UnaryOperator::Not => {
+                        let value: Value = (*unary).try_into()?;
+                        let value = value.is_truthy();
+                        Ok(Value::Boolean(!value))
+                    }
+                    UnaryOperator::Negate => {
+                        let Value::Number(n) = (*unary).try_into()? else {
+                            return Err(Error::TypeError);
+                        };
+                        Ok(Value::Number(-n))
+                    }
+                },
+                Unary::Primary(primary) => Ok(primary.into()),
+            }
+        }
+    }
+
+    impl From<Primary> for Value {
+        fn from(primary: Primary) -> Self {
+            use Value::{Boolean, Nil, Number, String};
+            match primary {
+                Primary::Number(n) => Number(n),
+                Primary::String(s) => String(s),
+                Primary::True => Boolean(true),
+                Primary::False => Boolean(false),
+                Primary::Nil => Nil,
+                Primary::Grouping(expr) => evaluate(*expr),
+            }
+        }
+    }
+
+    pub enum Error {
+        TypeError,
+    }
+}
+
 mod ast {
     #[derive(Debug)]
     pub struct Binary<Operand, Operator> {
