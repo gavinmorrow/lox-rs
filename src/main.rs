@@ -382,12 +382,16 @@ mod parser {
 }
 
 mod interperter {
-    use crate::ast::{Binary, Expr, Primary, Unary, UnaryOperator};
+    use crate::ast::{
+        Binary, ComparisonOperator, EqualityOperator, Expr, FactorOperator, Primary, TermOperator,
+        Unary, UnaryOperator,
+    };
 
     pub fn evaluate(expr: Expr) -> Value {
         todo!()
     }
 
+    #[derive(PartialEq)]
     pub enum Value {
         Nil,
         Boolean(bool),
@@ -407,6 +411,57 @@ mod interperter {
 
     trait BinaryOperator {
         fn resolve(&self, a: Value, b: Value) -> Result<Value, Error>;
+    }
+
+    impl BinaryOperator for EqualityOperator {
+        fn resolve(&self, a: Value, b: Value) -> Result<Value, Error> {
+            match self {
+                EqualityOperator::Equal => Ok(Value::Boolean(a == b)),
+                EqualityOperator::NotEqual => Ok(Value::Boolean(a != b)),
+            }
+        }
+    }
+
+    impl BinaryOperator for ComparisonOperator {
+        fn resolve(&self, a: Value, b: Value) -> Result<Value, Error> {
+            use Value::{Boolean, Number};
+            let (Number(a), Number(b)) = (a, b) else {
+                return Err(Error::TypeError);
+            };
+            match self {
+                ComparisonOperator::Less => Ok(Boolean(a < b)),
+                ComparisonOperator::LessEqual => Ok(Boolean(a <= b)),
+                ComparisonOperator::Greater => Ok(Boolean(a > b)),
+                ComparisonOperator::GreaterEqual => Ok(Boolean(a >= b)),
+            }
+        }
+    }
+
+    impl BinaryOperator for TermOperator {
+        fn resolve(&self, a: Value, b: Value) -> Result<Value, Error> {
+            use Value::Number;
+            let (Number(a), Number(b)) = (a, b) else {
+                return Err(Error::TypeError);
+            };
+            match self {
+                TermOperator::Add => Ok(Number(a + b)),
+                TermOperator::Subtract => Ok(Number(a - b)),
+            }
+        }
+    }
+
+    impl BinaryOperator for FactorOperator {
+        fn resolve(&self, a: Value, b: Value) -> Result<Value, Error> {
+            use Value::Number;
+            let (Number(a), Number(b)) = (a, b) else {
+                return Err(Error::TypeError);
+            };
+
+            match self {
+                FactorOperator::Divide => Ok(Number(a / b)),
+                FactorOperator::Multiply => Ok(Number(a * b)),
+            }
+        }
     }
 
     impl<Operand: TryInto<Value>, Operator: BinaryOperator> TryFrom<Binary<Operand, Operator>> for Value
