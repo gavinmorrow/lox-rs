@@ -418,12 +418,23 @@ mod parser {
 
 mod interperter {
     use crate::ast::{
-        Ast, Binary, ComparisonOperator, EqualityOperator, Expr, FactorOperator, Primary,
+        Ast, Binary, ComparisonOperator, EqualityOperator, Expr, FactorOperator, Primary, Stmt,
         TermOperator, Unary, UnaryOperator,
     };
 
     pub fn interpert(ast: Ast) -> Result<(), Error> {
-        todo!()
+        for stmt in ast {
+            match stmt {
+                Stmt::Expression(expr) => {
+                    evaluate(expr)?;
+                }
+                Stmt::Print(expr) => {
+                    let value = evaluate(expr)?;
+                    println!("{value}");
+                }
+            }
+        }
+        Ok(())
     }
 
     fn evaluate(expr: Expr) -> Result<Value, Error> {
@@ -447,6 +458,18 @@ mod interperter {
                 Nil | Boolean(false) => false,
                 _ => true,
             }
+        }
+    }
+
+    impl std::fmt::Display for Value {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let str = match self {
+                Value::Nil => "nil",
+                Value::Boolean(b) => &b.to_string(),
+                Value::Number(n) => &n.to_string(),
+                Value::String(s) => s,
+            };
+            f.write_str(str)
         }
     }
 
