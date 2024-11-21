@@ -217,8 +217,9 @@ mod parser {
 
     use crate::{
         ast::{
-            Ast, Binary, Comparison, ComparisonOperator, Equality, EqualityOperator, Expr, Factor,
-            FactorOperator, Primary, Stmt, Term, TermOperator, Unary, UnaryOperator,
+            Ast, Binary, Comparison, ComparisonOperator, Declaration, Equality, EqualityOperator,
+            Expr, Factor, FactorOperator, Primary, Stmt, Term, TermOperator, Unary, UnaryOperator,
+            VarDecl,
         },
         scanner::{Token, TokenType},
     };
@@ -237,18 +238,40 @@ mod parser {
             let mut statements = vec![];
 
             while self.tokens.peek().is_some() {
-                statements.push(self.statement()?)
+                statements.push(self.declaration()?)
             }
 
             Ok(statements)
         }
 
+        fn declaration(&mut self) -> Result<Declaration, ParseError> {
+            if self.matches(|t| matches!(t.data, TokenType::Var)) {
+                Ok(Declaration::VarDecl(self.var_decl()?))
+            } else {
+                Ok(Declaration::Statement(self.statement()?))
+            }
+        }
+
+        fn var_decl(&mut self) -> Result<VarDecl, ParseError> {
+            let token = self.consume(
+                |t| matches!(&t.data, TokenType::Identifier(_)),
+                ParseErrorType::ExpectedVarName,
+            )?;
+            let TokenType::Identifier(name) = token.data else {
+                unreachable!();
+            };
+
+            let initializer = if self.matches(|t| matches!(&t.data, TokenType::Equal)) {
+                Some(self.expression()?)
+            } else {
+                None
+            };
+
+            Ok(VarDecl { name, initializer })
+        }
+
         fn statement(&mut self) -> Result<Stmt, ParseError> {
-            let stmt = if self
-                .tokens
-                .next_if(|t| matches!(t.data, TokenType::Print))
-                .is_some()
-            {
+            let stmt = if self.matches(|t| matches!(t.data, TokenType::Print)) {
                 Stmt::Print(self.expression()?)
             } else {
                 Stmt::Expression(self.expression()?)
@@ -355,7 +378,7 @@ mod parser {
                 return Err(ParseError::new(ParseErrorType::ExpectedPrimary, None));
             };
 
-            use Primary::{False, Nil, Number, String, True};
+            use Primary::{False, Identifier, Nil, Number, String, True};
             match &next_token.data {
                 TokenType::False => Ok(False),
                 TokenType::True => Ok(True),
@@ -363,6 +386,7 @@ mod parser {
 
                 TokenType::Number(n) => Ok(Number(*n)),
                 TokenType::String(s) => Ok(String(s.clone())),
+                TokenType::Identifier(name) => Ok(Identifier(name.clone())),
 
                 TokenType::LeftParen => {
                     let expr = self.expression()?;
@@ -380,16 +404,18 @@ mod parser {
             }
         }
 
+        fn matches(&mut self, f: impl Fn(&Token) -> bool) -> bool {
+            self.tokens.next_if(f).is_some()
+        }
+
         fn consume(
             &mut self,
             f: impl Fn(&Token) -> bool,
             err_type: ParseErrorType,
-        ) -> Result<(), ParseError> {
-            if self.tokens.next_if(f).is_some() {
-                Ok(())
-            } else {
-                Err(ParseError::new(err_type, self.tokens.peek()))
-            }
+        ) -> Result<Token, ParseError> {
+            self.tokens
+                .next_if(f)
+                .ok_or(ParseError::new(err_type, self.tokens.peek()))
         }
     }
 
@@ -413,6 +439,7 @@ mod parser {
         ExpectedPrimary,
         ExpectedRightParen,
         ExpectedSemicolon,
+        ExpectedVarName,
     }
 }
 
@@ -424,15 +451,15 @@ mod interperter {
 
     pub fn interpert(ast: Ast) -> Result<(), Error> {
         for stmt in ast {
-            match stmt {
-                Stmt::Expression(expr) => {
-                    evaluate(expr)?;
-                }
-                Stmt::Print(expr) => {
-                    let value = evaluate(expr)?;
-                    println!("{value}");
-                }
-            }
+            // match stmt {
+            //     Stmt::Expression(expr) => {
+            //         evaluate(expr)?;
+            //     }
+            //     Stmt::Print(expr) => {
+            //         let value = evaluate(expr)?;
+            //         println!("{value}");
+            //     }
+            // }
         }
         Ok(())
     }
@@ -581,6 +608,7 @@ mod interperter {
                 Primary::False => Ok(Boolean(false)),
                 Primary::Nil => Ok(Nil),
                 Primary::Grouping(expr) => evaluate(*expr),
+                Primary::Identifier(_) => todo!(),
             }
         }
     }
@@ -596,8 +624,14 @@ mod ast {
 
     #[derive(Debug)]
     pub enum Declaration {
-        VarDecl { name: String, initializer: Expr },
+        VarDecl(VarDecl),
         Statement(Stmt),
+    }
+
+    #[derive(Debug)]
+    pub struct VarDecl {
+        pub name: String,
+        pub initializer: Option<Expr>,
     }
 
     #[derive(Debug)]
