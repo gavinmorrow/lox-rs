@@ -444,6 +444,8 @@ mod parser {
 }
 
 mod interperter {
+    use std::collections::HashMap;
+
     use crate::ast::{
         Ast, Binary, ComparisonOperator, EqualityOperator, Expr, FactorOperator, Primary, Stmt,
         TermOperator, Unary, UnaryOperator,
@@ -453,7 +455,7 @@ mod interperter {
         for stmt in ast {
             // match stmt {
             //     Stmt::Expression(expr) => {
-            //         evaluate(expr)?;
+            //         expr.evaluate(env)?;
             //     }
             //     Stmt::Print(expr) => {
             //         let value = evaluate(expr)?;
@@ -464,13 +466,7 @@ mod interperter {
         Ok(())
     }
 
-    fn evaluate(expr: Expr) -> Result<Value, Error> {
-        match expr {
-            Expr::Equality(equality) => equality.try_into(),
-        }
-    }
-
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, Clone, PartialEq)]
     pub enum Value {
         Nil,
         Boolean(bool),
@@ -555,17 +551,36 @@ mod interperter {
         }
     }
 
-    impl<Operand: TryInto<Value>, Operator: BinaryOperator> TryFrom<Binary<Operand, Operator>> for Value
-    where
-        Error: From<Operand::Error>,
-    {
-        type Error = Error;
+    struct Environment {
+        values: HashMap<String, Value>,
+    }
 
-        fn try_from(value: Binary<Operand, Operator>) -> Result<Self, Self::Error> {
-            let mut lhs: Value = value.lhs.try_into()?;
+    impl Environment {
+        pub fn new() -> Self {
+            Environment {
+                values: HashMap::new(),
+            }
+        }
 
-            for (op, rhs) in value.rhs {
-                let rhs: Value = rhs.try_into()?;
+        pub fn define(&mut self, name: impl Into<String>, value: Value) {
+            self.values.insert(name.into(), value);
+        }
+
+        pub fn get(&self, name: impl AsRef<str>) -> Option<&Value> {
+            self.values.get(name.as_ref())
+        }
+    }
+
+    trait Evaluate {
+        fn evaluate(self, env: &mut Environment) -> Result<Value, Error>;
+    }
+
+    impl<Operand: Evaluate, Operator: BinaryOperator> Evaluate for Binary<Operand, Operator> {
+        fn evaluate(self, env: &mut Environment) -> Result<Value, Error> {
+            let mut lhs: Value = self.lhs.evaluate(env)?;
+
+            for (op, rhs) in self.rhs {
+                let rhs: Value = rhs.evaluate(env)?;
                 lhs = op.apply(lhs, rhs)?;
             }
 
@@ -573,42 +588,46 @@ mod interperter {
         }
     }
 
-    impl TryFrom<Unary> for Value {
-        type Error = Error;
+    impl Evaluate for Expr {
+        fn evaluate(self, env: &mut Environment) -> Result<Value, Error> {
+            match self {
+                Expr::Equality(equality) => equality.evaluate(env),
+            }
+        }
+    }
 
-        fn try_from(unary: Unary) -> Result<Self, Self::Error> {
-            match unary {
+    impl Evaluate for Unary {
+        fn evaluate(self, env: &mut Environment) -> Result<Value, Error> {
+            match self {
                 Unary::Unary { operator, unary } => match operator {
                     UnaryOperator::Not => {
-                        let value: Value = (*unary).try_into()?;
+                        let value: Value = (*unary).evaluate(env)?;
                         let value = value.is_truthy();
                         Ok(Value::Boolean(!value))
                     }
                     UnaryOperator::Negate => {
-                        let Value::Number(n) = (*unary).try_into()? else {
+                        let Value::Number(n) = (*unary).evaluate(env)? else {
                             return Err(Error::TypeError);
                         };
                         Ok(Value::Number(-n))
                     }
                 },
-                Unary::Primary(primary) => primary.try_into(),
+                Unary::Primary(primary) => primary.evaluate(env),
             }
         }
     }
 
-    impl TryFrom<Primary> for Value {
-        type Error = Error;
-
-        fn try_from(primary: Primary) -> Result<Self, Error> {
+    impl Evaluate for Primary {
+        fn evaluate(self, env: &mut Environment) -> Result<Value, Error> {
             use Value::{Boolean, Nil, Number, String};
-            match primary {
+            match self {
                 Primary::Number(n) => Ok(Number(n)),
                 Primary::String(s) => Ok(String(s)),
                 Primary::True => Ok(Boolean(true)),
                 Primary::False => Ok(Boolean(false)),
                 Primary::Nil => Ok(Nil),
-                Primary::Grouping(expr) => evaluate(*expr),
-                Primary::Identifier(_) => todo!(),
+                Primary::Grouping(expr) => expr.evaluate(env),
+                Primary::Identifier(name) => env.get(name).cloned().ok_or(Error::VarNotDefinied),
             }
         }
     }
@@ -616,6 +635,7 @@ mod interperter {
     #[derive(Debug)]
     pub enum Error {
         TypeError,
+        VarNotDefinied,
     }
 }
 
