@@ -237,13 +237,13 @@ mod parser {
             let mut statements = vec![];
 
             while self.tokens.peek().is_some() {
-                statements.push(self.statement())
+                statements.push(self.statement()?)
             }
 
             Ok(statements)
         }
 
-        fn statement(&mut self) -> Stmt {
+        fn statement(&mut self) -> Result<Stmt, ParseError> {
             todo!()
         }
 
