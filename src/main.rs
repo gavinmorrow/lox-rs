@@ -450,8 +450,8 @@ mod interperter {
     use std::collections::HashMap;
 
     use crate::ast::{
-        Ast, Binary, ComparisonOperator, Declaration, EqualityOperator, Expr, FactorOperator,
-        Primary, Stmt, TermOperator, Unary, UnaryOperator, VarDecl,
+        Assignment, Ast, Binary, ComparisonOperator, Declaration, EqualityOperator, Expr,
+        FactorOperator, Primary, Stmt, TermOperator, Unary, UnaryOperator, VarDecl,
     };
 
     pub fn interpert(ast: Ast, env: &mut Environment) -> Result<(), Error> {
@@ -564,6 +564,23 @@ mod interperter {
         pub fn get(&self, name: impl AsRef<str>) -> Option<&Value> {
             self.values.get(name.as_ref())
         }
+
+        /// Update a value if it exists.
+        ///
+        /// Returns `Ok(())` if the value exists and was updated, and `Err(())`
+        /// otherwise.
+        pub fn set(
+            &mut self,
+            name: impl Into<String> + AsRef<str>,
+            value: Value,
+        ) -> Result<(), ()> {
+            if self.values.contains_key(name.as_ref()) {
+                self.values.insert(name.into(), value);
+                Ok(())
+            } else {
+                Err(())
+            }
+        }
     }
 
     trait Evaluate {
@@ -623,7 +640,20 @@ mod interperter {
     impl Evaluate for Expr {
         fn evaluate(self, env: &mut Environment) -> Result<Value, Error> {
             match self {
-                Expr::Equality(equality) => equality.evaluate(env),
+                Expr::Assignment(assignment) => assignment.evaluate(env),
+            }
+        }
+    }
+
+    impl Evaluate for Assignment {
+        fn evaluate(self, env: &mut Environment) -> Result<Value, Error> {
+            match self {
+                Assignment::Assignment { name, value } => {
+                    let value = value.evaluate(env)?;
+                    env.set(name, value.clone());
+                    Ok(value)
+                }
+                Assignment::Equality(equality) => equality.evaluate(env),
             }
         }
     }
@@ -694,6 +724,15 @@ mod ast {
 
     #[derive(Debug)]
     pub enum Expr {
+        Assignment(Assignment),
+    }
+
+    #[derive(Debug)]
+    pub enum Assignment {
+        Assignment {
+            name: String,
+            value: Box<Assignment>,
+        },
         Equality(Equality),
     }
 
