@@ -592,7 +592,14 @@ mod interperter {
 }
 
 mod ast {
-    pub type Ast = Vec<Stmt>;
+    pub type Ast = Vec<Declaration>;
+
+    #[derive(Debug)]
+    pub enum Declaration {
+        VarDecl { name: String, initializer: Expr },
+        Statement(Stmt),
+    }
+
     #[derive(Debug)]
     pub enum Stmt {
         Expression(Expr),
@@ -662,5 +669,6 @@ mod ast {
         False,
         Nil,
         Grouping(Box<Expr>),
+        Identifier(String),
     }
 }
