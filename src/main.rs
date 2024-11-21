@@ -245,11 +245,18 @@ mod parser {
         }
 
         fn declaration(&mut self) -> Result<Declaration, ParseError> {
-            if self.matches(|t| matches!(t.data, TokenType::Var)) {
-                Ok(Declaration::VarDecl(self.var_decl()?))
+            let decl = if self.matches(|t| matches!(t.data, TokenType::Var)) {
+                Declaration::VarDecl(self.var_decl()?)
             } else {
-                Ok(Declaration::Statement(self.statement()?))
-            }
+                Declaration::Statement(self.statement()?)
+            };
+
+            self.consume(
+                |t| matches!(t.data, TokenType::Semicolon),
+                ParseErrorType::ExpectedSemicolon,
+            )?;
+
+            Ok(decl)
         }
 
         fn var_decl(&mut self) -> Result<VarDecl, ParseError> {
@@ -277,10 +284,6 @@ mod parser {
                 Stmt::Expression(self.expression()?)
             };
 
-            self.consume(
-                |t| matches!(t.data, TokenType::Semicolon),
-                ParseErrorType::ExpectedSemicolon,
-            )?;
             Ok(stmt)
         }
 
