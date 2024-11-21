@@ -5,12 +5,12 @@ fn main() {
 
     match args.nth(1) {
         Some(path) => match fs::read_to_string(path) {
-            Ok(source) => run(source, &mut interperter::Environment::new()),
+            Ok(source) => run(source, &mut interperter::Environment::new(None)),
             Err(err) => panic!("Error reading file: {err}"),
         },
         None => {
             // run repl
-            let mut env = interperter::Environment::new();
+            let mut env = interperter::Environment::new(None);
             eprint!("> ");
             while let Some(Ok(line)) = io::stdin().lines().next() {
                 run(line, &mut env);
@@ -597,13 +597,15 @@ mod interperter {
         }
     }
 
-    pub struct Environment {
+    pub struct Environment<'e> {
+        parent: Option<&'e mut Environment<'e>>,
         values: HashMap<String, Value>,
     }
 
-    impl Environment {
-        pub fn new() -> Self {
+    impl<'e> Environment<'e> {
+        pub fn new(parent: Option<&'e mut Environment<'e>>) -> Self {
             Environment {
+                parent,
                 values: HashMap::new(),
             }
         }
@@ -613,7 +615,15 @@ mod interperter {
         }
 
         pub fn get(&self, name: impl AsRef<str>) -> Option<&Value> {
-            self.values.get(name.as_ref())
+            self.values
+                .get(name.as_ref())
+                .or_else(|| self.parent.as_ref().and_then(|p| p.get(name)))
+        }
+
+        fn get_mut(&mut self, name: impl AsRef<str>) -> Option<&mut Value> {
+            self.values
+                .get_mut(name.as_ref())
+                .or_else(|| self.parent.as_mut().and_then(|p| p.get_mut(name)))
         }
 
         /// Update a value if it exists.
@@ -625,8 +635,8 @@ mod interperter {
             name: impl Into<String> + AsRef<str>,
             value: Value,
         ) -> Result<(), ()> {
-            if self.values.contains_key(name.as_ref()) {
-                self.values.insert(name.into(), value);
+            if let Some(variable) = self.get_mut(name) {
+                *variable = value;
                 Ok(())
             } else {
                 Err(())
