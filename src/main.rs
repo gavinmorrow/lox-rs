@@ -14,7 +14,7 @@ fn main() {
             eprint!("> ");
             while let Some(Ok(line)) = io::stdin().lines().next() {
                 run(line, &mut env);
-                eprint!("\n> ");
+                eprint!("> ");
             }
             eprintln!("Goodbye! o/");
         }
@@ -23,14 +23,13 @@ fn main() {
 
 fn run(source: String, env: &mut interperter::Environment) {
     let tokens = scanner::scan(source);
-    dbg!(&tokens);
-
     let ast = parser::Parser::new(tokens).parse();
-    dbg!(&ast);
-
-    if let Ok(ast) = ast {
-        let res = interperter::interpert(ast, env);
-        dbg!(res);
+    match ast {
+        Ok(ast) => match interperter::interpert(ast, env) {
+            Ok(_) => {}
+            Err(err) => eprintln!("Runtime Error: {err:#?}"),
+        },
+        Err(err) => eprintln!("Error parsing tokens: {err:#?}"),
     }
 }
 
