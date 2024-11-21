@@ -447,8 +447,8 @@ mod interperter {
     use std::collections::HashMap;
 
     use crate::ast::{
-        Ast, Binary, ComparisonOperator, EqualityOperator, Expr, FactorOperator, Primary, Stmt,
-        TermOperator, Unary, UnaryOperator,
+        Ast, Binary, ComparisonOperator, Declaration, EqualityOperator, Expr, FactorOperator,
+        Primary, Stmt, TermOperator, Unary, UnaryOperator, VarDecl,
     };
 
     pub fn interpert(ast: Ast) -> Result<(), Error> {
@@ -585,6 +585,43 @@ mod interperter {
             }
 
             Ok(lhs)
+        }
+    }
+
+    impl Evaluate for Declaration {
+        fn evaluate(self, env: &mut Environment) -> Result<Value, Error> {
+            match self {
+                Declaration::VarDecl(var_decl) => var_decl.evaluate(env),
+                Declaration::Statement(stmt) => stmt.evaluate(env),
+            }
+        }
+    }
+
+    impl Evaluate for VarDecl {
+        fn evaluate(self, env: &mut Environment) -> Result<Value, Error> {
+            let value = self
+                .initializer
+                .map(|expr| expr.evaluate(env))
+                .transpose()?
+                .unwrap_or(Value::Nil);
+
+            env.define(self.name, value);
+            Ok(Value::Nil)
+        }
+    }
+
+    impl Evaluate for Stmt {
+        fn evaluate(self, env: &mut Environment) -> Result<Value, Error> {
+            match self {
+                Stmt::Expression(expr) => {
+                    expr.evaluate(env)?;
+                }
+                Stmt::Print(expr) => {
+                    let value = expr.evaluate(env)?;
+                    println!("{value}");
+                }
+            };
+            Ok(Value::Nil)
         }
     }
 
