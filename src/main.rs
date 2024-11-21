@@ -452,16 +452,9 @@ mod interperter {
     };
 
     pub fn interpert(ast: Ast) -> Result<(), Error> {
-        for stmt in ast {
-            // match stmt {
-            //     Stmt::Expression(expr) => {
-            //         expr.evaluate(env)?;
-            //     }
-            //     Stmt::Print(expr) => {
-            //         let value = evaluate(expr)?;
-            //         println!("{value}");
-            //     }
-            // }
+        let mut env = Environment::new();
+        for declaration in ast {
+            declaration.evaluate(&mut env)?;
         }
         Ok(())
     }
