@@ -244,7 +244,28 @@ mod parser {
         }
 
         fn statement(&mut self) -> Result<Stmt, ParseError> {
-            todo!()
+            let stmt = if self
+                .tokens
+                .next_if(|t| matches!(t.data, TokenType::Print))
+                .is_some()
+            {
+                Stmt::Print(self.expression()?)
+            } else {
+                Stmt::Expression(self.expression()?)
+            };
+
+            if self
+                .tokens
+                .next_if(|t| matches!(t.data, TokenType::Semicolon))
+                .is_some()
+            {
+                Ok(stmt)
+            } else {
+                Err(ParseError::new(
+                    ParseErrorType::ExpectedSemicolon,
+                    self.tokens.peek(),
+                ))
+            }
         }
 
         fn binary<Operand, Operator>(
@@ -393,6 +414,7 @@ mod parser {
         UnexpectedEof,
         ExpectedPrimary,
         ExpectedRightParen,
+        ExpectedSemicolon,
     }
 }
 
