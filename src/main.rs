@@ -5,14 +5,15 @@ fn main() {
 
     match args.nth(1) {
         Some(path) => match fs::read_to_string(path) {
-            Ok(source) => run(source),
+            Ok(source) => run(source, &mut interperter::Environment::new()),
             Err(err) => panic!("Error reading file: {err}"),
         },
         None => {
             // run repl
+            let mut env = interperter::Environment::new();
             eprint!("> ");
             while let Some(Ok(line)) = io::stdin().lines().next() {
-                run(line);
+                run(line, &mut env);
                 eprint!("\n> ");
             }
             eprintln!("Goodbye! o/");
@@ -20,7 +21,7 @@ fn main() {
     }
 }
 
-fn run(source: String) {
+fn run(source: String, env: &mut interperter::Environment) {
     let tokens = scanner::scan(source);
     dbg!(&tokens);
 
@@ -28,7 +29,7 @@ fn run(source: String) {
     dbg!(&ast);
 
     if let Ok(ast) = ast {
-        let res = interperter::interpert(ast);
+        let res = interperter::interpert(ast, env);
         dbg!(res);
     }
 }
@@ -454,10 +455,9 @@ mod interperter {
         Primary, Stmt, TermOperator, Unary, UnaryOperator, VarDecl,
     };
 
-    pub fn interpert(ast: Ast) -> Result<(), Error> {
-        let mut env = Environment::new();
+    pub fn interpert(ast: Ast, env: &mut Environment) -> Result<(), Error> {
         for declaration in ast {
-            declaration.evaluate(&mut env)?;
+            declaration.evaluate(env)?;
         }
         Ok(())
     }
@@ -547,7 +547,7 @@ mod interperter {
         }
     }
 
-    struct Environment {
+    pub struct Environment {
         values: HashMap<String, Value>,
     }
 
