@@ -229,9 +229,9 @@ mod parser {
 
     use crate::{
         ast::{
-            Ast, Binary, Comparison, ComparisonOperator, Declaration, Equality, EqualityOperator,
-            Expr, Factor, FactorOperator, Primary, Stmt, Term, TermOperator, Unary, UnaryOperator,
-            VarDecl,
+            Assignment, Ast, Binary, Comparison, ComparisonOperator, Declaration, Equality,
+            EqualityOperator, Expr, Factor, FactorOperator, Primary, Stmt, Term, TermOperator,
+            Unary, UnaryOperator, VarDecl,
         },
         scanner::{Token, TokenType},
     };
@@ -329,7 +329,42 @@ mod parser {
         }
 
         fn expression(&mut self) -> Result<Expr, ParseError> {
-            Ok(Expr::Equality(self.equality()?))
+            Ok(Expr::Assignment(self.assignment()?))
+        }
+
+        fn assignment(&mut self) -> Result<Assignment, ParseError> {
+            let target_token = self.tokens.peek().cloned();
+            let expr = self.equality()?;
+
+            if self.matches(|t| matches!(t.data, TokenType::Equal)) {
+                let target = expr;
+                let value = self.assignment()?;
+
+                // Ensure target is a valid identifier
+                if !(target.rhs.is_empty()
+                    && target.lhs.rhs.is_empty()
+                    && target.lhs.lhs.rhs.is_empty()
+                    && target.lhs.lhs.lhs.rhs.is_empty())
+                {
+                    return Err(ParseError {
+                        error: ParseErrorType::InvalidAssignmentTarget,
+                        location: target_token,
+                    });
+                }
+                let Unary::Primary(Primary::Identifier(name)) = target.lhs.lhs.lhs.lhs else {
+                    return Err(ParseError {
+                        error: ParseErrorType::InvalidAssignmentTarget,
+                        location: target_token,
+                    });
+                };
+
+                Ok(Assignment::Assignment {
+                    name,
+                    value: Box::new(value),
+                })
+            } else {
+                Ok(Assignment::Equality(expr))
+            }
         }
 
         fn equality(&mut self) -> Result<Equality, ParseError> {
@@ -459,6 +494,7 @@ mod parser {
         ExpectedRightParen,
         ExpectedSemicolon,
         ExpectedVarName,
+        InvalidAssignmentTarget,
     }
 }
 
