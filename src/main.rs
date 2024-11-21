@@ -254,18 +254,11 @@ mod parser {
                 Stmt::Expression(self.expression()?)
             };
 
-            if self
-                .tokens
-                .next_if(|t| matches!(t.data, TokenType::Semicolon))
-                .is_some()
-            {
-                Ok(stmt)
-            } else {
-                Err(ParseError::new(
-                    ParseErrorType::ExpectedSemicolon,
-                    self.tokens.peek(),
-                ))
-            }
+            self.consume(
+                |t| matches!(t.data, TokenType::Semicolon),
+                ParseErrorType::ExpectedSemicolon,
+            )?;
+            Ok(stmt)
         }
 
         fn binary<Operand, Operator>(
@@ -373,24 +366,29 @@ mod parser {
 
                 TokenType::LeftParen => {
                     let expr = self.expression()?;
-                    if self
-                        .tokens
-                        .next_if(|t| matches!(t.data, TokenType::RightParen))
-                        .is_some()
-                    {
-                        Ok(Primary::Grouping(Box::new(expr)))
-                    } else {
-                        Err(ParseError::new(
-                            ParseErrorType::ExpectedRightParen,
-                            self.tokens.peek(),
-                        ))
-                    }
+                    self.consume(
+                        |t| matches!(t.data, TokenType::RightParen),
+                        ParseErrorType::ExpectedRightParen,
+                    )?;
+                    Ok(Primary::Grouping(Box::new(expr)))
                 }
 
                 _ => Err(ParseError::new(
                     ParseErrorType::ExpectedPrimary,
                     Some(&next_token),
                 )),
+            }
+        }
+
+        fn consume(
+            &mut self,
+            f: impl Fn(&Token) -> bool,
+            err_type: ParseErrorType,
+        ) -> Result<(), ParseError> {
+            if self.tokens.next_if(f).is_some() {
+                Ok(())
+            } else {
+                Err(ParseError::new(err_type, self.tokens.peek()))
             }
         }
     }
