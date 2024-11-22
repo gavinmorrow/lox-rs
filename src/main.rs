@@ -650,7 +650,8 @@ mod interperter {
             match self {
                 Assignment::Assignment { name, value } => {
                     let value = value.evaluate(env)?;
-                    env.set(name, value.clone());
+                    env.set(name, value.clone())
+                        .map_err(|()| Error::VarNotDefinied)?;
                     Ok(value)
                 }
                 Assignment::Equality(equality) => equality.evaluate(env),
