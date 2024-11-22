@@ -489,7 +489,6 @@ mod parser {
 
     #[derive(Debug)]
     pub enum ParseErrorType {
-        UnexpectedEof,
         ExpectedPrimary,
         ExpectedRightParen,
         ExpectedSemicolon,
