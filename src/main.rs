@@ -229,7 +229,7 @@ mod parser {
 
     use crate::{
         ast::{
-            Assignment, Ast, Binary, Comparison, ComparisonOperator, Declaration, Equality,
+            Assignment, Ast, Binary, Block, Comparison, ComparisonOperator, Declaration, Equality,
             EqualityOperator, Expr, Factor, FactorOperator, Primary, Stmt, Term, TermOperator,
             Unary, UnaryOperator, VarDecl,
         },
@@ -292,6 +292,8 @@ mod parser {
         fn statement(&mut self) -> Result<Stmt, ParseError> {
             let stmt = if self.matches(|t| matches!(t.data, TokenType::Print)) {
                 Stmt::Print(self.expression()?)
+            } else if self.matches(|t| matches!(t.data, TokenType::LeftBrace)) {
+                Stmt::Block(self.block()?)
             } else {
                 Stmt::Expression(self.expression()?)
             };
@@ -326,6 +328,23 @@ mod parser {
             }
 
             Ok(expr)
+        }
+
+        fn block(&mut self) -> Result<Block, ParseError> {
+            let mut stmts = vec![];
+            loop {
+                if self.matches(|t| matches!(t.data, TokenType::RightBrace)) {
+                    break;
+                } else if self.tokens.peek().is_none() {
+                    return Err(ParseError {
+                        error: ParseErrorType::ExpectedRightBrace,
+                        location: None,
+                    });
+                }
+
+                stmts.push(self.statement()?);
+            }
+            Ok(stmts)
         }
 
         fn expression(&mut self) -> Result<Expr, ParseError> {
@@ -494,6 +513,7 @@ mod parser {
         ExpectedSemicolon,
         ExpectedVarName,
         InvalidAssignmentTarget,
+        ExpectedRightBrace,
     }
 }
 
@@ -693,6 +713,12 @@ mod interperter {
                     let value = expr.evaluate(env)?;
                     println!("{value}");
                 }
+                Stmt::Block(stmts) => {
+                    let mut env = Environment::new(Some(env));
+                    for stmt in stmts {
+                        stmt.evaluate(&mut env)?;
+                    }
+                }
             };
             Ok(Value::Nil)
         }
@@ -782,7 +808,10 @@ mod ast {
     pub enum Stmt {
         Expression(Expr),
         Print(Expr),
+        Block(Block),
     }
+
+    pub type Block = Vec<Stmt>;
 
     #[derive(Debug)]
     pub enum Expr {
