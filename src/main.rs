@@ -151,6 +151,10 @@ mod scanner {
     #[derive(Clone, Debug)]
     pub struct Token {
         pub data: TokenType,
+        #[allow(
+            dead_code,
+            reason = "Haven't made great error messages yet, just uses Debug impl."
+        )]
         pub pos: usize,
     }
 
@@ -202,9 +206,17 @@ mod scanner {
         Var,
         While,
 
+        #[allow(
+            dead_code,
+            reason = "Haven't made great error messages yet, just uses Debug impl."
+        )]
         Error(ScanError),
     }
 
+    #[allow(
+        dead_code,
+        reason = "Haven't made great error messages yet, just uses Debug impl."
+    )]
     #[derive(Copy, Clone, Debug)]
     pub enum ScanError {
         UnexpectedChar(char),
@@ -422,6 +434,10 @@ mod parser {
         }
     }
 
+    #[allow(
+        dead_code,
+        reason = "Haven't made great error messages yet, just uses Debug impl."
+    )]
     #[derive(Debug)]
     pub struct ParseError {
         error: ParseErrorType,
