@@ -5,12 +5,12 @@ fn main() {
 
     match args.nth(1) {
         Some(path) => match fs::read_to_string(path) {
-            Ok(source) => run(source, &mut interperter::Environment::new()),
+            Ok(source) => run(source, &mut interperter::env::Environment::new()),
             Err(err) => panic!("Error reading file: {err}"),
         },
         None => {
             // run repl
-            let mut env = interperter::Environment::new();
+            let mut env = interperter::env::Environment::new();
             eprint!("> ");
             while let Some(Ok(line)) = io::stdin().lines().next() {
                 run(line, &mut env);
@@ -21,7 +21,7 @@ fn main() {
     }
 }
 
-fn run(source: String, env: &mut interperter::Environment) {
+fn run(source: String, env: &mut interperter::env::Environment) {
     let tokens = scanner::scan(source);
     let ast = parser::Parser::new(tokens).parse();
     match ast {
@@ -518,7 +518,7 @@ mod parser {
 }
 
 mod interperter {
-    use std::collections::HashMap;
+    use env::Environment;
 
     use crate::ast::{
         Assignment, Ast, Binary, ComparisonOperator, Declaration, EqualityOperator, Expr,
@@ -617,43 +617,49 @@ mod interperter {
         }
     }
 
-    pub struct Environment {
-        values: HashMap<String, Value>,
-    }
+    pub mod env {
+        use std::collections::HashMap;
 
-    impl Environment {
-        pub fn new() -> Self {
-            Environment {
-                values: HashMap::new(),
+        use super::Value;
+
+        pub struct Environment {
+            values: HashMap<String, Value>,
+        }
+
+        impl Environment {
+            pub fn new() -> Self {
+                Environment {
+                    values: HashMap::new(),
+                }
             }
-        }
 
-        pub fn define(&mut self, name: impl Into<String>, value: Value) {
-            self.values.insert(name.into(), value);
-        }
+            pub fn define(&mut self, name: impl Into<String>, value: Value) {
+                self.values.insert(name.into(), value);
+            }
 
-        pub fn get(&self, name: impl AsRef<str>) -> Option<&Value> {
-            self.values.get(name.as_ref())
-        }
+            pub fn get(&self, name: impl AsRef<str>) -> Option<&Value> {
+                self.values.get(name.as_ref())
+            }
 
-        fn get_mut(&mut self, name: impl AsRef<str>) -> Option<&mut Value> {
-            self.values.get_mut(name.as_ref())
-        }
+            fn get_mut(&mut self, name: impl AsRef<str>) -> Option<&mut Value> {
+                self.values.get_mut(name.as_ref())
+            }
 
-        /// Update a value if it exists.
-        ///
-        /// Returns `Ok(())` if the value exists and was updated, and `Err(())`
-        /// otherwise.
-        pub fn set(
-            &mut self,
-            name: impl Into<String> + AsRef<str>,
-            value: Value,
-        ) -> Result<(), ()> {
-            if let Some(variable) = self.get_mut(name) {
-                *variable = value;
-                Ok(())
-            } else {
-                Err(())
+            /// Update a value if it exists.
+            ///
+            /// Returns `Ok(())` if the value exists and was updated, and `Err(())`
+            /// otherwise.
+            pub fn set(
+                &mut self,
+                name: impl Into<String> + AsRef<str>,
+                value: Value,
+            ) -> Result<(), ()> {
+                if let Some(variable) = self.get_mut(name) {
+                    *variable = value;
+                    Ok(())
+                } else {
+                    Err(())
+                }
             }
         }
     }
