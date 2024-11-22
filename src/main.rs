@@ -617,13 +617,13 @@ mod interperter {
         }
     }
 
-    pub struct Environment<'e> {
-        parent: Option<&'e mut Environment<'e>>,
+    pub struct Environment<'p> {
+        parent: Option<&'p mut Environment<'p>>,
         values: HashMap<String, Value>,
     }
 
-    impl<'e> Environment<'e> {
-        pub fn new(parent: Option<&'e mut Environment<'e>>) -> Self {
+    impl<'p> Environment<'p> {
+        pub fn new(parent: Option<&'p mut Environment<'p>>) -> Self {
             Environment {
                 parent,
                 values: HashMap::new(),
