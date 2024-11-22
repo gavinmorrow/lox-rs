@@ -5,12 +5,12 @@ fn main() {
 
     match args.nth(1) {
         Some(path) => match fs::read_to_string(path) {
-            Ok(source) => run(source, &mut interperter::Environment::new(None)),
+            Ok(source) => run(source, &mut interperter::Environment::new()),
             Err(err) => panic!("Error reading file: {err}"),
         },
         None => {
             // run repl
-            let mut env = interperter::Environment::new(None);
+            let mut env = interperter::Environment::new();
             eprint!("> ");
             while let Some(Ok(line)) = io::stdin().lines().next() {
                 run(line, &mut env);
@@ -617,15 +617,13 @@ mod interperter {
         }
     }
 
-    pub struct Environment<'p> {
-        parent: Option<&'p mut Environment<'p>>,
+    pub struct Environment {
         values: HashMap<String, Value>,
     }
 
-    impl<'p> Environment<'p> {
-        pub fn new(parent: Option<&'p mut Environment<'p>>) -> Self {
+    impl Environment {
+        pub fn new() -> Self {
             Environment {
-                parent,
                 values: HashMap::new(),
             }
         }
@@ -635,15 +633,11 @@ mod interperter {
         }
 
         pub fn get(&self, name: impl AsRef<str>) -> Option<&Value> {
-            self.values
-                .get(name.as_ref())
-                .or_else(|| self.parent.as_ref().and_then(|p| p.get(name)))
+            self.values.get(name.as_ref())
         }
 
         fn get_mut(&mut self, name: impl AsRef<str>) -> Option<&mut Value> {
-            self.values
-                .get_mut(name.as_ref())
-                .or_else(|| self.parent.as_mut().and_then(|p| p.get_mut(name)))
+            self.values.get_mut(name.as_ref())
         }
 
         /// Update a value if it exists.
@@ -714,9 +708,8 @@ mod interperter {
                     println!("{value}");
                 }
                 Stmt::Block(stmts) => {
-                    let mut env = Environment::new(Some(env));
                     for stmt in stmts {
-                        stmt.evaluate(&mut env)?;
+                        stmt.evaluate(env)?;
                     }
                 }
             };
