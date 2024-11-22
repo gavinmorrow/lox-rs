@@ -269,10 +269,7 @@ mod parser {
                 Declaration::Statement(self.statement()?)
             };
 
-            self.consume(
-                |t| matches!(t.data, TokenType::Semicolon),
-                ParseErrorType::ExpectedSemicolon,
-            )?;
+            self.semicolon()?;
 
             Ok(decl)
         }
@@ -477,6 +474,13 @@ mod parser {
                     Some(&next_token),
                 )),
             }
+        }
+
+        fn semicolon(&mut self) -> Result<Token, ParseError> {
+            self.consume(
+                |t| matches!(t.data, TokenType::Semicolon),
+                ParseErrorType::ExpectedSemicolon,
+            )
         }
 
         fn matches(&mut self, f: impl Fn(&Token) -> bool) -> bool {
