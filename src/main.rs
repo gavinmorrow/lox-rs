@@ -693,6 +693,10 @@ mod interperter {
                 );
                 Scope { parent, id }
             }
+
+            pub fn nest(&self) -> Self {
+                Scope::new(Some(Box::new(self.clone())))
+            }
         }
 
         type ScopeId = usize;
@@ -750,6 +754,7 @@ mod interperter {
                     println!("{value}");
                 }
                 Stmt::Block(stmts) => {
+                    let scope = scope.nest();
                     for stmt in stmts {
                         stmt.evaluate(env, scope.clone())?;
                     }
