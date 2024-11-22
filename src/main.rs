@@ -345,7 +345,7 @@ mod parser {
                     });
                 }
 
-                stmts.push(self.statement()?);
+                stmts.push(self.declaration()?);
             }
             Ok(stmts)
         }
@@ -859,7 +859,7 @@ mod ast {
         Block(Block),
     }
 
-    pub type Block = Vec<Stmt>;
+    pub type Block = Vec<Declaration>;
 
     #[derive(Debug)]
     pub enum Expr {
