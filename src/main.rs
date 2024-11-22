@@ -5,15 +5,21 @@ fn main() {
 
     match args.nth(1) {
         Some(path) => match fs::read_to_string(path) {
-            Ok(source) => run(source, &mut interperter::env::Environment::new()),
+            Ok(source) => run(
+                source,
+                &mut interperter::env::Environment::new(),
+                interperter::env::Scope::new(None),
+            ),
             Err(err) => panic!("Error reading file: {err}"),
         },
         None => {
             // run repl
             let mut env = interperter::env::Environment::new();
+            let scope = interperter::env::Scope::new(None);
+
             eprint!("> ");
             while let Some(Ok(line)) = io::stdin().lines().next() {
-                run(line, &mut env);
+                run(line, &mut env, scope.clone());
                 eprint!("> ");
             }
             eprintln!("Goodbye! o/");
@@ -21,11 +27,11 @@ fn main() {
     }
 }
 
-fn run(source: String, env: &mut interperter::env::Environment) {
+fn run(source: String, env: &mut interperter::env::Environment, scope: interperter::env::Scope) {
     let tokens = scanner::scan(source);
     let ast = parser::Parser::new(tokens).parse();
     match ast {
-        Ok(ast) => match interperter::interpert(ast, env) {
+        Ok(ast) => match interperter::interpert(ast, env, scope) {
             Ok(_) => {}
             Err(err) => eprintln!("Runtime Error: {err:#?}"),
         },
@@ -518,16 +524,16 @@ mod parser {
 }
 
 mod interperter {
-    use env::Environment;
+    use env::{Environment, Identifier, Scope};
 
     use crate::ast::{
         Assignment, Ast, Binary, ComparisonOperator, Declaration, EqualityOperator, Expr,
         FactorOperator, Primary, Stmt, TermOperator, Unary, UnaryOperator, VarDecl,
     };
 
-    pub fn interpert(ast: Ast, env: &mut Environment) -> Result<(), Error> {
+    pub fn interpert(ast: Ast, env: &mut Environment, scope: Scope) -> Result<(), Error> {
         for declaration in ast {
-            declaration.evaluate(env)?;
+            declaration.evaluate(env, scope.clone())?;
         }
         Ok(())
     }
@@ -618,12 +624,15 @@ mod interperter {
     }
 
     pub mod env {
-        use std::collections::HashMap;
+        use std::{
+            collections::HashMap,
+            sync::atomic::{AtomicUsize, Ordering},
+        };
 
         use super::Value;
 
         pub struct Environment {
-            values: HashMap<String, Value>,
+            values: HashMap<Identifier, Value>,
         }
 
         impl Environment {
@@ -633,28 +642,24 @@ mod interperter {
                 }
             }
 
-            pub fn define(&mut self, name: impl Into<String>, value: Value) {
-                self.values.insert(name.into(), value);
+            pub fn define(&mut self, identifier: Identifier, value: Value) {
+                self.values.insert(identifier, value);
             }
 
-            pub fn get(&self, name: impl AsRef<str>) -> Option<&Value> {
-                self.values.get(name.as_ref())
+            pub fn get(&self, identifier: &Identifier) -> Option<&Value> {
+                self.values.get(identifier)
             }
 
-            fn get_mut(&mut self, name: impl AsRef<str>) -> Option<&mut Value> {
-                self.values.get_mut(name.as_ref())
+            fn get_mut(&mut self, identifier: &Identifier) -> Option<&mut Value> {
+                self.values.get_mut(identifier)
             }
 
             /// Update a value if it exists.
             ///
             /// Returns `Ok(())` if the value exists and was updated, and `Err(())`
             /// otherwise.
-            pub fn set(
-                &mut self,
-                name: impl Into<String> + AsRef<str>,
-                value: Value,
-            ) -> Result<(), ()> {
-                if let Some(variable) = self.get_mut(name) {
+            pub fn set(&mut self, identifier: &Identifier, value: Value) -> Result<(), ()> {
+                if let Some(variable) = self.get_mut(identifier) {
                     *variable = value;
                     Ok(())
                 } else {
@@ -662,18 +667,48 @@ mod interperter {
                 }
             }
         }
+
+        #[derive(Eq, PartialEq, Hash)]
+        pub struct Identifier {
+            scope: Scope,
+            name: String,
+        }
+        impl Identifier {
+            pub(crate) fn new(scope: Scope, name: String) -> Self {
+                Self { scope, name }
+            }
+        }
+
+        #[derive(Clone, Eq, PartialEq, Hash)]
+        pub struct Scope {
+            parent: Option<Box<Scope>>,
+            id: ScopeId,
+        }
+        impl Scope {
+            pub fn new(parent: Option<Box<Scope>>) -> Self {
+                let id = NEXT_SCOPE_ID.fetch_add(
+                    1,
+                    // Use Ordering::SeqCst b/c I'm not confident that anything else would work properly, and this guarentees it.
+                    Ordering::SeqCst,
+                );
+                Scope { parent, id }
+            }
+        }
+
+        type ScopeId = usize;
+        static NEXT_SCOPE_ID: AtomicUsize = AtomicUsize::new(0);
     }
 
     trait Evaluate {
-        fn evaluate(self, env: &mut Environment) -> Result<Value, Error>;
+        fn evaluate(self, env: &mut Environment, scope: Scope) -> Result<Value, Error>;
     }
 
     impl<Operand: Evaluate, Operator: BinaryOperator> Evaluate for Binary<Operand, Operator> {
-        fn evaluate(self, env: &mut Environment) -> Result<Value, Error> {
-            let mut lhs: Value = self.lhs.evaluate(env)?;
+        fn evaluate(self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
+            let mut lhs: Value = self.lhs.evaluate(env, scope.clone())?;
 
             for (op, rhs) in self.rhs {
-                let rhs: Value = rhs.evaluate(env)?;
+                let rhs: Value = rhs.evaluate(env, scope.clone())?;
                 lhs = op.apply(lhs, rhs)?;
             }
 
@@ -682,40 +717,41 @@ mod interperter {
     }
 
     impl Evaluate for Declaration {
-        fn evaluate(self, env: &mut Environment) -> Result<Value, Error> {
+        fn evaluate(self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
             match self {
-                Declaration::VarDecl(var_decl) => var_decl.evaluate(env),
-                Declaration::Statement(stmt) => stmt.evaluate(env),
+                Declaration::VarDecl(var_decl) => var_decl.evaluate(env, scope),
+                Declaration::Statement(stmt) => stmt.evaluate(env, scope),
             }
         }
     }
 
     impl Evaluate for VarDecl {
-        fn evaluate(self, env: &mut Environment) -> Result<Value, Error> {
+        fn evaluate(self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
+            let identifier = Identifier::new(scope.clone(), self.name);
             let value = self
                 .initializer
-                .map(|expr| expr.evaluate(env))
+                .map(|expr| expr.evaluate(env, scope))
                 .transpose()?
                 .unwrap_or(Value::Nil);
 
-            env.define(self.name, value);
+            env.define(identifier, value);
             Ok(Value::Nil)
         }
     }
 
     impl Evaluate for Stmt {
-        fn evaluate(self, env: &mut Environment) -> Result<Value, Error> {
+        fn evaluate(self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
             match self {
                 Stmt::Expression(expr) => {
-                    expr.evaluate(env)?;
+                    expr.evaluate(env, scope)?;
                 }
                 Stmt::Print(expr) => {
-                    let value = expr.evaluate(env)?;
+                    let value = expr.evaluate(env, scope)?;
                     println!("{value}");
                 }
                 Stmt::Block(stmts) => {
                     for stmt in stmts {
-                        stmt.evaluate(env)?;
+                        stmt.evaluate(env, scope.clone())?;
                     }
                 }
             };
@@ -724,50 +760,51 @@ mod interperter {
     }
 
     impl Evaluate for Expr {
-        fn evaluate(self, env: &mut Environment) -> Result<Value, Error> {
+        fn evaluate(self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
             match self {
-                Expr::Assignment(assignment) => assignment.evaluate(env),
+                Expr::Assignment(assignment) => assignment.evaluate(env, scope),
             }
         }
     }
 
     impl Evaluate for Assignment {
-        fn evaluate(self, env: &mut Environment) -> Result<Value, Error> {
+        fn evaluate(self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
             match self {
                 Assignment::Assignment { name, value } => {
-                    let value = value.evaluate(env)?;
-                    env.set(name, value.clone())
+                    let identifier = Identifier::new(scope.clone(), name);
+                    let value = value.evaluate(env, scope)?;
+                    env.set(&identifier, value.clone())
                         .map_err(|()| Error::VarNotDefinied)?;
                     Ok(value)
                 }
-                Assignment::Equality(equality) => equality.evaluate(env),
+                Assignment::Equality(equality) => equality.evaluate(env, scope),
             }
         }
     }
 
     impl Evaluate for Unary {
-        fn evaluate(self, env: &mut Environment) -> Result<Value, Error> {
+        fn evaluate(self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
             match self {
                 Unary::Unary { operator, unary } => match operator {
                     UnaryOperator::Not => {
-                        let value: Value = (*unary).evaluate(env)?;
+                        let value: Value = (*unary).evaluate(env, scope)?;
                         let value = value.is_truthy();
                         Ok(Value::Boolean(!value))
                     }
                     UnaryOperator::Negate => {
-                        let Value::Number(n) = (*unary).evaluate(env)? else {
+                        let Value::Number(n) = (*unary).evaluate(env, scope)? else {
                             return Err(Error::TypeError);
                         };
                         Ok(Value::Number(-n))
                     }
                 },
-                Unary::Primary(primary) => primary.evaluate(env),
+                Unary::Primary(primary) => primary.evaluate(env, scope),
             }
         }
     }
 
     impl Evaluate for Primary {
-        fn evaluate(self, env: &mut Environment) -> Result<Value, Error> {
+        fn evaluate(self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
             use Value::{Boolean, Nil, Number, String};
             match self {
                 Primary::Number(n) => Ok(Number(n)),
@@ -775,8 +812,11 @@ mod interperter {
                 Primary::True => Ok(Boolean(true)),
                 Primary::False => Ok(Boolean(false)),
                 Primary::Nil => Ok(Nil),
-                Primary::Grouping(expr) => expr.evaluate(env),
-                Primary::Identifier(name) => env.get(name).cloned().ok_or(Error::VarNotDefinied),
+                Primary::Grouping(expr) => expr.evaluate(env, scope),
+                Primary::Identifier(name) => env
+                    .get(&Identifier::new(scope, name))
+                    .cloned()
+                    .ok_or(Error::VarNotDefinied),
             }
         }
     }
