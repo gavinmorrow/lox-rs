@@ -1,29 +1,30 @@
+#![warn(clippy::all, clippy::pedantic)]
+
 use std::{env, fs, io};
 
 fn main() {
     let mut args = env::args();
 
-    match args.nth(1) {
-        Some(path) => match fs::read_to_string(path) {
+    if let Some(path) = args.nth(1) {
+        match fs::read_to_string(path) {
             Ok(source) => run(
                 source,
                 &mut interperter::env::Environment::new(),
                 interperter::env::Scope::new(None),
             ),
             Err(err) => panic!("Error reading file: {err}"),
-        },
-        None => {
-            // run repl
-            let mut env = interperter::env::Environment::new();
-            let scope = interperter::env::Scope::new(None);
-
-            eprint!("> ");
-            while let Some(Ok(line)) = io::stdin().lines().next() {
-                run(line, &mut env, scope.clone());
-                eprint!("> ");
-            }
-            eprintln!("Goodbye! o/");
         }
+    } else {
+        // run repl
+        let mut env = interperter::env::Environment::new();
+        let scope = interperter::env::Scope::new(None);
+
+        eprint!("> ");
+        while let Some(Ok(line)) = io::stdin().lines().next() {
+            run(line, &mut env, scope.clone());
+            eprint!("> ");
+        }
+        eprintln!("Goodbye! o/");
     }
 }
 
@@ -32,7 +33,7 @@ fn run(source: String, env: &mut interperter::env::Environment, scope: interpert
     let ast = parser::Parser::new(tokens).parse();
     match ast {
         Ok(ast) => match interperter::interpert(ast, env, scope) {
-            Ok(_) => {}
+            Ok(()) => {}
             Err(err) => eprintln!("Runtime Error: {err:#?}"),
         },
         Err(err) => eprintln!("Error parsing tokens: {err:#?}"),
@@ -40,12 +41,17 @@ fn run(source: String, env: &mut interperter::env::Environment, scope: interpert
 }
 
 mod scanner {
-    pub fn scan(source: String) -> Vec<Token> {
+    pub fn scan(source: impl AsRef<str>) -> Vec<Token> {
         let mut tokens = vec![];
 
-        let mut source = source.char_indices().peekable();
+        let mut source = source.as_ref().char_indices().peekable();
         while let Some((pos, char)) = source.next() {
-            use TokenType::*;
+            use TokenType::{
+                And, Bang, BangEqual, Class, Comma, Dot, Else, Equal, EqualEqual, Error, False,
+                For, Fun, Greater, GreaterEqual, Identifier, If, LeftBrace, LeftParen, Less,
+                LessEqual, Minus, Nil, Number, Or, Plus, Print, Return, RightBrace, RightParen,
+                Semicolon, Slash, Star, String, Super, This, True, Var, While,
+            };
 
             let mut equals_variant = |no_eq: TokenType, eq: TokenType| -> TokenType {
                 match source.next_if(|(_, c)| *c == '=') {
@@ -157,7 +163,7 @@ mod scanner {
     #[derive(Clone, Debug)]
     pub struct Token {
         pub data: TokenType,
-        #[allow(
+        #[expect(
             dead_code,
             reason = "Haven't made great error messages yet, just uses Debug impl."
         )]
@@ -212,14 +218,14 @@ mod scanner {
         Var,
         While,
 
-        #[allow(
+        #[expect(
             dead_code,
             reason = "Haven't made great error messages yet, just uses Debug impl."
         )]
         Error(ScanError),
     }
 
-    #[allow(
+    #[expect(
         dead_code,
         reason = "Haven't made great error messages yet, just uses Debug impl."
     )]
@@ -256,7 +262,7 @@ mod parser {
             let mut statements = vec![];
 
             while self.tokens.peek().is_some() {
-                statements.push(self.declaration()?)
+                statements.push(self.declaration()?);
             }
 
             Ok(statements)
@@ -318,10 +324,9 @@ mod parser {
                 .peek()
                 // add operator
                 .and_then(|t| operator(&t.data))
-                .map(|op| {
+                .inspect(|_| {
                     // advance iterator if `operator()` matched
                     self.tokens.next();
-                    op
                 })
                 // add rhs operand
                 .map(|op| operand(self).map(|operand| (op, operand)))
@@ -432,9 +437,8 @@ mod parser {
                     TokenType::Minus => Some(UnaryOperator::Negate),
                     _ => None,
                 })
-                .map(|op| {
+                .inspect(|_| {
                     self.tokens.next();
-                    op
                 });
 
             if let Some(operator) = operator {
@@ -446,11 +450,12 @@ mod parser {
         }
 
         fn primary(&mut self) -> Result<Primary, ParseError> {
+            use Primary::{False, Identifier, Nil, Number, String, True};
+
             let Some(next_token) = self.tokens.next() else {
                 return Err(ParseError::new(ParseErrorType::ExpectedPrimary, None));
             };
 
-            use Primary::{False, Identifier, Nil, Number, String, True};
             match &next_token.data {
                 TokenType::False => Ok(False),
                 TokenType::True => Ok(True),
@@ -498,7 +503,7 @@ mod parser {
         }
     }
 
-    #[allow(
+    #[expect(
         dead_code,
         reason = "Haven't made great error messages yet, just uses Debug impl."
     )]
@@ -511,7 +516,7 @@ mod parser {
         // Take `&Token` rather than just `Token` so that it's easier to use
         // `self.tokens.peek()` w/ it.
         pub fn new(error: ParseErrorType, location: Option<&Token>) -> Self {
-            let location = location.map(|t| t.clone());
+            let location = location.cloned();
             ParseError { error, location }
         }
     }
@@ -535,6 +540,10 @@ mod interperter {
         FactorOperator, Primary, Stmt, TermOperator, Unary, UnaryOperator, VarDecl,
     };
 
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "Consistency with other that take a owned Scope."
+    )]
     pub fn interpert(ast: Ast, env: &mut Environment, scope: Scope) -> Result<(), Error> {
         for declaration in ast {
             declaration.evaluate(env, scope.clone())?;
@@ -553,10 +562,7 @@ mod interperter {
     impl Value {
         fn is_truthy(&self) -> bool {
             use Value::{Boolean, Nil};
-            match self {
-                Nil | Boolean(false) => false,
-                _ => true,
-            }
+            !matches!(self, Nil | Boolean(false))
         }
     }
 
