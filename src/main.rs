@@ -242,8 +242,8 @@ mod parser {
     use crate::{
         ast::{
             Assignment, Ast, Binary, Block, Comparison, ComparisonOperator, Declaration, Equality,
-            EqualityOperator, Expr, Factor, FactorOperator, Primary, Stmt, Term, TermOperator,
-            Unary, UnaryOperator, VarDecl,
+            EqualityOperator, Expr, Factor, FactorOperator, IfStmt, Primary, Stmt, Term,
+            TermOperator, Unary, UnaryOperator, VarDecl,
         },
         scanner::{Token, TokenType},
     };
@@ -299,6 +299,8 @@ mod parser {
         fn statement(&mut self) -> Result<Stmt, ParseError> {
             let stmt = if self.matches(|t| matches!(t.data, TokenType::Print)) {
                 Stmt::Print(self.expression()?)
+            } else if self.matches(|t| matches!(t.data, TokenType::If)) {
+                Stmt::If(self.if_stmt()?)
             } else if self.matches(|t| matches!(t.data, TokenType::LeftBrace)) {
                 Stmt::Block(self.block()?)
             } else {
@@ -336,6 +338,31 @@ mod parser {
             }
 
             Ok(expr)
+        }
+
+        fn if_stmt(&mut self) -> Result<IfStmt, ParseError> {
+            self.consume(
+                |t| matches!(t.data, TokenType::LeftParen),
+                ParseErrorType::ExpectedLeftParen,
+            )?;
+            let condition = self.expression()?;
+            self.consume(
+                |t| matches!(t.data, TokenType::RightParen),
+                ParseErrorType::ExpectedRightParen,
+            )?;
+
+            let then_branch = Box::new(self.statement()?);
+            let else_branch = if self.matches(|t| matches!(t.data, TokenType::Else)) {
+                Some(Box::new(self.statement()?))
+            } else {
+                None
+            };
+
+            Ok(IfStmt {
+                condition,
+                then_branch,
+                else_branch,
+            })
         }
 
         fn block(&mut self) -> Result<Block, ParseError> {
@@ -529,6 +556,7 @@ mod parser {
         ExpectedVarName,
         InvalidAssignmentTarget,
         ExpectedRightBrace,
+        ExpectedLeftParen,
     }
 }
 
@@ -537,7 +565,7 @@ mod interperter {
 
     use crate::ast::{
         Assignment, Ast, Binary, ComparisonOperator, Declaration, EqualityOperator, Expr,
-        FactorOperator, Primary, Stmt, TermOperator, Unary, UnaryOperator, VarDecl,
+        FactorOperator, IfStmt, Primary, Stmt, TermOperator, Unary, UnaryOperator, VarDecl,
     };
 
     #[expect(
@@ -791,6 +819,9 @@ mod interperter {
                 Stmt::Expression(expr) => {
                     expr.evaluate(env, scope)?;
                 }
+                Stmt::If(if_stmt) => {
+                    if_stmt.evaluate(env, scope)?;
+                }
                 Stmt::Print(expr) => {
                     let value = expr.evaluate(env, scope)?;
                     println!("{value}");
@@ -811,6 +842,24 @@ mod interperter {
             match self {
                 Expr::Assignment(assignment) => assignment.evaluate(env, scope),
             }
+        }
+    }
+
+    impl Evaluate for IfStmt {
+        fn evaluate(self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
+            let IfStmt {
+                condition,
+                then_branch,
+                else_branch,
+            } = self;
+            let condition = condition.evaluate(env, scope.clone())?;
+            if condition.is_truthy() {
+                then_branch.evaluate(env, scope)?;
+            } else if let Some(else_branch) = else_branch {
+                else_branch.evaluate(env, scope)?;
+            }
+
+            Ok(Value::Nil)
         }
     }
 
@@ -893,11 +942,19 @@ mod ast {
     #[derive(Debug)]
     pub enum Stmt {
         Expression(Expr),
+        If(IfStmt),
         Print(Expr),
         Block(Block),
     }
 
     pub type Block = Vec<Declaration>;
+
+    #[derive(Debug)]
+    pub struct IfStmt {
+        pub condition: Expr,
+        pub then_branch: Box<Stmt>,
+        pub else_branch: Option<Box<Stmt>>,
+    }
 
     #[derive(Debug)]
     pub enum Expr {
