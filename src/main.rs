@@ -608,13 +608,19 @@ mod interperter {
 
     impl BinaryOperator for TermOperator {
         fn apply(&self, a: Value, b: Value) -> Result<Value, Error> {
-            use Value::Number;
-            let (Number(a), Number(b)) = (a, b) else {
-                return Err(Error::TypeError);
-            };
+            use Value::{Number, String};
             match self {
-                TermOperator::Add => Ok(Number(a + b)),
-                TermOperator::Subtract => Ok(Number(a - b)),
+                TermOperator::Add => match (a, b) {
+                    (Number(a), Number(b)) => Ok(Number(a + b)),
+                    (String(a), String(b)) => Ok(String(a + b.as_str())),
+                    _ => Err(Error::TypeError),
+                },
+                TermOperator::Subtract => {
+                    let (Number(a), Number(b)) = (a, b) else {
+                        return Err(Error::TypeError);
+                    };
+                    Ok(Number(a - b))
+                }
             }
         }
     }
