@@ -297,19 +297,19 @@ mod parser {
         }
 
         fn statement(&mut self) -> Result<Stmt, ParseError> {
-            let stmt = if self.matches(|t| matches!(t.data, TokenType::Print)) {
-                Stmt::Print(self.expression()?)
+            if self.matches(|t| matches!(t.data, TokenType::Print)) {
+                let print_stmt = Stmt::Print(self.expression()?);
+                self.semicolon()?;
+                Ok(print_stmt)
             } else if self.matches(|t| matches!(t.data, TokenType::If)) {
-                Stmt::If(self.if_stmt()?)
+                Ok(Stmt::If(self.if_stmt()?))
             } else if self.matches(|t| matches!(t.data, TokenType::LeftBrace)) {
-                Stmt::Block(self.block()?)
+                Ok(Stmt::Block(self.block()?))
             } else {
-                Stmt::Expression(self.expression()?)
-            };
-
-            self.semicolon()?;
-
-            Ok(stmt)
+                let expr_stmt = Stmt::Expression(self.expression()?);
+                self.semicolon()?;
+                Ok(expr_stmt)
+            }
         }
 
         fn binary<Operand, Operator>(
