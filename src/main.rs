@@ -242,8 +242,9 @@ mod parser {
     use crate::{
         ast::{
             Assignment, Ast, Binary, Block, Comparison, ComparisonOperator, Declaration, Equality,
-            EqualityOperator, Expr, Factor, FactorOperator, IfStmt, Primary, Stmt, Term,
-            TermOperator, Unary, UnaryOperator, VarDecl,
+            EqualityOperator, Expr, Factor, FactorOperator, IfStmt, LogicAnd, LogicAndOperator,
+            LogicOr, LogicOrOperator, Primary, Stmt, Term, TermOperator, Unary, UnaryOperator,
+            VarDecl,
         },
         scanner::{Token, TokenType},
     };
@@ -388,7 +389,7 @@ mod parser {
 
         fn assignment(&mut self) -> Result<Assignment, ParseError> {
             let target_token = self.tokens.peek().cloned();
-            let expr = self.equality()?;
+            let expr = self.logic_or()?;
 
             if self.matches(|t| matches!(t.data, TokenType::Equal)) {
                 let target = expr;
@@ -398,14 +399,17 @@ mod parser {
                 if !(target.rhs.is_empty()
                     && target.lhs.rhs.is_empty()
                     && target.lhs.lhs.rhs.is_empty()
-                    && target.lhs.lhs.lhs.rhs.is_empty())
+                    && target.lhs.lhs.lhs.rhs.is_empty()
+                    && target.lhs.lhs.lhs.lhs.rhs.is_empty()
+                    && target.lhs.lhs.lhs.lhs.lhs.rhs.is_empty())
                 {
                     return Err(ParseError {
                         error: ParseErrorType::InvalidAssignmentTarget,
                         location: target_token,
                     });
                 }
-                let Unary::Primary(Primary::Identifier(name)) = target.lhs.lhs.lhs.lhs else {
+                let Unary::Primary(Primary::Identifier(name)) = target.lhs.lhs.lhs.lhs.lhs.lhs
+                else {
                     return Err(ParseError {
                         error: ParseErrorType::InvalidAssignmentTarget,
                         location: target_token,
@@ -417,8 +421,22 @@ mod parser {
                     value: Box::new(value),
                 })
             } else {
-                Ok(Assignment::Equality(expr))
+                Ok(Assignment::LogicOr(expr))
             }
+        }
+
+        fn logic_or(&mut self) -> Result<LogicOr, ParseError> {
+            self.binary(Self::logic_and, |token| match token {
+                TokenType::Or => Some(LogicOrOperator),
+                _ => None,
+            })
+        }
+
+        fn logic_and(&mut self) -> Result<LogicAnd, ParseError> {
+            self.binary(Self::equality, |token| match token {
+                TokenType::And => Some(LogicAndOperator),
+                _ => None,
+            })
         }
 
         fn equality(&mut self) -> Result<Equality, ParseError> {
@@ -565,7 +583,8 @@ mod interperter {
 
     use crate::ast::{
         Assignment, Ast, Binary, ComparisonOperator, Declaration, EqualityOperator, Expr,
-        FactorOperator, IfStmt, Primary, Stmt, TermOperator, Unary, UnaryOperator, VarDecl,
+        FactorOperator, IfStmt, LogicAndOperator, LogicOrOperator, Primary, Stmt, TermOperator,
+        Unary, UnaryOperator, VarDecl,
     };
 
     #[expect(
@@ -608,6 +627,29 @@ mod interperter {
 
     trait BinaryOperator {
         fn apply(&self, a: Value, b: Value) -> Result<Value, Error>;
+        fn should_short_circuit(&self, #[expect(unused_variables)] lhs: &Value) -> bool {
+            false
+        }
+    }
+
+    impl BinaryOperator for LogicOrOperator {
+        fn apply(&self, a: Value, b: Value) -> Result<Value, Error> {
+            Ok(if a.is_truthy() { a } else { b })
+        }
+
+        fn should_short_circuit(&self, lhs: &Value) -> bool {
+            lhs.is_truthy()
+        }
+    }
+
+    impl BinaryOperator for LogicAndOperator {
+        fn apply(&self, a: Value, b: Value) -> Result<Value, Error> {
+            Ok(if a.is_truthy() { b } else { a })
+        }
+
+        fn should_short_circuit(&self, lhs: &Value) -> bool {
+            !lhs.is_truthy()
+        }
     }
 
     impl BinaryOperator for EqualityOperator {
@@ -782,6 +824,10 @@ mod interperter {
             let mut lhs: Value = self.lhs.evaluate(env, scope.clone())?;
 
             for (op, rhs) in self.rhs {
+                if op.should_short_circuit(&lhs) {
+                    return Ok(lhs);
+                }
+
                 let rhs: Value = rhs.evaluate(env, scope.clone())?;
                 lhs = op.apply(lhs, rhs)?;
             }
@@ -873,7 +919,7 @@ mod interperter {
                         .map_err(|()| Error::VarNotDefinied)?;
                     Ok(value)
                 }
-                Assignment::Equality(equality) => equality.evaluate(env, scope),
+                Assignment::LogicOr(logic_or) => logic_or.evaluate(env, scope),
             }
         }
     }
@@ -967,8 +1013,16 @@ mod ast {
             name: String,
             value: Box<Assignment>,
         },
-        Equality(Equality),
+        LogicOr(LogicOr),
     }
+
+    pub type LogicOr = Binary<LogicAnd, LogicOrOperator>;
+    #[derive(Debug)]
+    pub struct LogicOrOperator;
+
+    pub type LogicAnd = Binary<Equality, LogicAndOperator>;
+    #[derive(Debug)]
+    pub struct LogicAndOperator;
 
     #[derive(Debug)]
     pub struct Binary<Operand, Operator> {
