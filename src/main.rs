@@ -244,7 +244,7 @@ mod parser {
             Assignment, Ast, Binary, Block, Comparison, ComparisonOperator, Declaration, Equality,
             EqualityOperator, Expr, Factor, FactorOperator, IfStmt, LogicAnd, LogicAndOperator,
             LogicOr, LogicOrOperator, Primary, Stmt, Term, TermOperator, Unary, UnaryOperator,
-            VarDecl,
+            VarDecl, WhileStmt,
         },
         scanner::{Token, TokenType},
     };
@@ -304,6 +304,8 @@ mod parser {
                 Ok(print_stmt)
             } else if self.matches(|t| matches!(t.data, TokenType::If)) {
                 Ok(Stmt::If(self.if_stmt()?))
+            } else if self.matches(|t| matches!(t.data, TokenType::While)) {
+                Ok(Stmt::While(self.while_loop()?))
             } else if self.matches(|t| matches!(t.data, TokenType::LeftBrace)) {
                 Ok(Stmt::Block(self.block()?))
             } else {
@@ -364,6 +366,22 @@ mod parser {
                 then_branch,
                 else_branch,
             })
+        }
+
+        fn while_loop(&mut self) -> Result<WhileStmt, ParseError> {
+            self.consume(
+                |t| matches!(t.data, TokenType::LeftParen),
+                ParseErrorType::ExpectedLeftParen,
+            )?;
+            let condition = self.expression()?;
+            self.consume(
+                |t| matches!(t.data, TokenType::RightParen),
+                ParseErrorType::ExpectedRightParen,
+            )?;
+
+            let body = Box::new(self.statement()?);
+
+            Ok(WhileStmt { condition, body })
         }
 
         fn block(&mut self) -> Result<Block, ParseError> {
@@ -816,14 +834,14 @@ mod interperter {
     }
 
     trait Evaluate {
-        fn evaluate(self, env: &mut Environment, scope: Scope) -> Result<Value, Error>;
+        fn evaluate(&self, env: &mut Environment, scope: Scope) -> Result<Value, Error>;
     }
 
     impl<Operand: Evaluate, Operator: BinaryOperator> Evaluate for Binary<Operand, Operator> {
-        fn evaluate(self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
+        fn evaluate(&self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
             let mut lhs: Value = self.lhs.evaluate(env, scope.clone())?;
 
-            for (op, rhs) in self.rhs {
+            for (op, rhs) in &self.rhs {
                 if op.should_short_circuit(&lhs) {
                     return Ok(lhs);
                 }
@@ -837,7 +855,7 @@ mod interperter {
     }
 
     impl Evaluate for Declaration {
-        fn evaluate(self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
+        fn evaluate(&self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
             match self {
                 Declaration::VarDecl(var_decl) => var_decl.evaluate(env, scope),
                 Declaration::Statement(stmt) => stmt.evaluate(env, scope),
@@ -846,21 +864,22 @@ mod interperter {
     }
 
     impl Evaluate for VarDecl {
-        fn evaluate(self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
-            let identifier = Identifier::new(scope.clone(), self.name);
+        fn evaluate(&self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
+            let identifier = Identifier::new(scope.clone(), self.name.clone());
             let value = self
                 .initializer
+                .as_ref()
                 .map(|expr| expr.evaluate(env, scope))
                 .transpose()?
                 .unwrap_or(Value::Nil);
 
-            env.define(identifier, value);
+            env.define(identifier, value.clone());
             Ok(Value::Nil)
         }
     }
 
     impl Evaluate for Stmt {
-        fn evaluate(self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
+        fn evaluate(&self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
             match self {
                 Stmt::Expression(expr) => {
                     expr.evaluate(env, scope)?;
@@ -871,6 +890,15 @@ mod interperter {
                 Stmt::Print(expr) => {
                     let value = expr.evaluate(env, scope)?;
                     println!("{value}");
+                }
+                Stmt::While(while_loop) => {
+                    while while_loop
+                        .condition
+                        .evaluate(env, scope.clone())?
+                        .is_truthy()
+                    {
+                        while_loop.body.evaluate(env, scope.clone())?;
+                    }
                 }
                 Stmt::Block(stmts) => {
                     let scope = scope.nest();
@@ -884,7 +912,7 @@ mod interperter {
     }
 
     impl Evaluate for Expr {
-        fn evaluate(self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
+        fn evaluate(&self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
             match self {
                 Expr::Assignment(assignment) => assignment.evaluate(env, scope),
             }
@@ -892,7 +920,7 @@ mod interperter {
     }
 
     impl Evaluate for IfStmt {
-        fn evaluate(self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
+        fn evaluate(&self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
             let IfStmt {
                 condition,
                 then_branch,
@@ -910,10 +938,10 @@ mod interperter {
     }
 
     impl Evaluate for Assignment {
-        fn evaluate(self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
+        fn evaluate(&self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
             match self {
                 Assignment::Assignment { name, value } => {
-                    let identifier = Identifier::new(scope.clone(), name);
+                    let identifier = Identifier::new(scope.clone(), name.clone());
                     let value = value.evaluate(env, scope)?;
                     env.set(&identifier, value.clone())
                         .map_err(|()| Error::VarNotDefinied)?;
@@ -925,7 +953,7 @@ mod interperter {
     }
 
     impl Evaluate for Unary {
-        fn evaluate(self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
+        fn evaluate(&self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
             match self {
                 Unary::Unary { operator, unary } => match operator {
                     UnaryOperator::Not => {
@@ -946,17 +974,17 @@ mod interperter {
     }
 
     impl Evaluate for Primary {
-        fn evaluate(self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
+        fn evaluate(&self, env: &mut Environment, scope: Scope) -> Result<Value, Error> {
             use Value::{Boolean, Nil, Number, String};
             match self {
-                Primary::Number(n) => Ok(Number(n)),
-                Primary::String(s) => Ok(String(s)),
+                Primary::Number(n) => Ok(Number(*n)),
+                Primary::String(s) => Ok(String(s.clone())),
                 Primary::True => Ok(Boolean(true)),
                 Primary::False => Ok(Boolean(false)),
                 Primary::Nil => Ok(Nil),
                 Primary::Grouping(expr) => expr.evaluate(env, scope),
                 Primary::Identifier(name) => env
-                    .get(&Identifier::new(scope, name))
+                    .get(&Identifier::new(scope, name.clone()))
                     .cloned()
                     .ok_or(Error::VarNotDefinied),
             }
@@ -990,6 +1018,7 @@ mod ast {
         Expression(Expr),
         If(IfStmt),
         Print(Expr),
+        While(WhileStmt),
         Block(Block),
     }
 
@@ -1000,6 +1029,12 @@ mod ast {
         pub condition: Expr,
         pub then_branch: Box<Stmt>,
         pub else_branch: Option<Box<Stmt>>,
+    }
+
+    #[derive(Debug)]
+    pub struct WhileStmt {
+        pub condition: Expr,
+        pub body: Box<Stmt>,
     }
 
     #[derive(Debug)]
