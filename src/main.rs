@@ -306,6 +306,8 @@ mod parser {
                 Ok(Stmt::If(self.if_stmt()?))
             } else if self.matches(|t| matches!(t.data, TokenType::While)) {
                 Ok(Stmt::While(self.while_loop()?))
+            } else if self.matches(|t| matches!(t.data, TokenType::For)) {
+                self.for_loop()
             } else if self.matches(|t| matches!(t.data, TokenType::LeftBrace)) {
                 Ok(Stmt::Block(self.block()?))
             } else {
@@ -382,6 +384,88 @@ mod parser {
             let body = Box::new(self.statement()?);
 
             Ok(WhileStmt { condition, body })
+        }
+
+        fn for_loop(&mut self) -> Result<Stmt, ParseError> {
+            self.consume(
+                |t| matches!(t.data, TokenType::LeftParen),
+                ParseErrorType::ExpectedLeftParen,
+            )?;
+
+            let initializer = if self.matches(|t| matches!(t.data, TokenType::Semicolon)) {
+                None
+            } else if self.matches(|t| matches!(t.data, TokenType::Var)) {
+                Some(Declaration::VarDecl(self.var_decl()?))
+            } else {
+                let expr = self.expression()?;
+                self.consume(
+                    |t| matches!(t.data, TokenType::Semicolon),
+                    ParseErrorType::ExpectedSemicolon,
+                )?;
+                Some(Declaration::Statement(Stmt::Expression(expr)))
+            };
+
+            let condition = if self.matches(|t| matches!(t.data, TokenType::Semicolon)) {
+                None
+            } else {
+                let expr = self.expression()?;
+                self.consume(
+                    |t| matches!(t.data, TokenType::Semicolon),
+                    ParseErrorType::ExpectedSemicolon,
+                )?;
+                Some(expr)
+            };
+
+            let increment = if self.matches(|t| matches!(t.data, TokenType::RightParen)) {
+                None
+            } else {
+                let expr = self.expression()?;
+                self.consume(
+                    |t| matches!(t.data, TokenType::RightParen),
+                    ParseErrorType::ExpectedRightParen,
+                )?;
+                Some(expr)
+            };
+
+            let body = self.statement()?;
+            let mut desugared = body;
+
+            if let Some(increment) = increment {
+                desugared = Stmt::Block(vec![
+                    Declaration::Statement(desugared),
+                    Declaration::Statement(Stmt::Expression(increment)),
+                ]);
+            }
+
+            let condition = condition.unwrap_or(Expr::Assignment(Assignment::LogicOr(LogicOr {
+                lhs: LogicAnd {
+                    lhs: Equality {
+                        lhs: Comparison {
+                            lhs: Term {
+                                lhs: Factor {
+                                    lhs: Unary::Primary(Primary::True),
+                                    rhs: vec![],
+                                },
+                                rhs: vec![],
+                            },
+                            rhs: vec![],
+                        },
+                        rhs: vec![],
+                    },
+                    rhs: vec![],
+                },
+                rhs: vec![],
+            })));
+            desugared = Stmt::While(WhileStmt {
+                condition,
+                body: Box::new(desugared),
+            });
+
+            if let Some(initializer) = initializer {
+                desugared = Stmt::Block(vec![initializer, Declaration::Statement(desugared)]);
+            }
+
+            Ok(desugared)
         }
 
         fn block(&mut self) -> Result<Block, ParseError> {
